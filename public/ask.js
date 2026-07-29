@@ -160,27 +160,49 @@ async function ask(question) {
 
 /* ------------------------------------------------- Deep リサーチ */
 
-const RESEARCH_PHASE_LABEL = {
-  queued: '順番を待っています',
-  planning: '調査計画を作成しています',
-  searching: '履歴を反復検索しています',
-  verifying: '根拠と矛盾を確認しています',
-  writing: 'レポートを作成しています',
-};
-
 function fmtElapsed(ms) {
   const s = Math.floor(ms / 1000);
   return s >= 60 ? `${Math.floor(s / 60)}分${String(s % 60).padStart(2, '0')}秒` : `${s}秒`;
 }
 
-/** 進捗カード（進捗バー・現在の工程・統計・途中経過・キャンセル）を作る。 */
+const RESEARCH_ICONS = {
+  clock:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l2.8 1.8"/></svg>',
+  search:
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5 16 16"/></svg>',
+  chev:
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+};
+
+function researchIcon(name, className = 'icon') {
+  const span = el('span', className);
+  span.innerHTML = RESEARCH_ICONS[name];
+  return span;
+}
+
+const RESEARCH_THINKING_LABEL = {
+  queued: '順番を待っています',
+  planning: '思考中',
+  searching: '思考中',
+  verifying: '検証中',
+  writing: 'レポートを作成中',
+};
+
+/** 進捗カード（ステップと検索ワードの一覧・キャンセル）を作る。 */
 function addResearchCard(jobId) {
   empty?.remove();
+  const state = { collapsed: false, closedSteps: new Set() };
   const card = el('div', 'research-card');
 
   const head = el('div', 'research-head');
-  const title = el('span', 'research-title', '🔬 詳しく調査しています');
-  const pct = el('span', 'research-pct', '0%');
+  const summary = el('button', 'research-summary');
+  summary.type = 'button';
+  const sumText = el('span', '', '調査を開始しています');
+  summary.append(sumText, researchIcon('chev', 'chev'));
+  summary.addEventListener('click', () => {
+    state.collapsed = !state.collapsed;
+    card.classList.toggle('collapsed', state.collapsed);
+  });
   const cancel = el('button', 'research-cancel', 'キャンセル');
   cancel.type = 'button';
   cancel.addEventListener('click', () => {
@@ -188,53 +210,83 @@ function addResearchCard(jobId) {
     cancel.textContent = '停止中…';
     fetch(`/api/research/${jobId}/cancel`, { method: 'POST' }).catch(() => {});
   });
-  head.append(title, pct, cancel);
+  head.append(summary, cancel);
 
   const bar = el('div', 'research-bar');
   const fill = el('i');
   bar.appendChild(fill);
 
-  const step = el('div', 'research-step', '');
+  const body = el('div', 'research-body');
+  const thinking = el('div', 'research-thinking', '思考中');
   const stats = el('div', 'research-stats', '');
-  const findings = el('ul', 'research-findings');
-  findings.hidden = true;
 
-  card.append(head, bar, step, stats, findings);
+  card.append(head, bar, body, thinking, stats);
   log.appendChild(card);
   scrollDown();
-  return { card, title, pct, fill, step, stats, findings, cancel };
+  return { card, state, sumText, fill, body, thinking, stats, cancel };
+}
+
+/** ステップ一覧（各ステップの下に実行した検索ワード）を描画する。 */
+function renderResearchSteps(refs, snap) {
+  const { state } = refs;
+  refs.body.replaceChildren(
+    ...(snap.steps || []).map((step) => {
+      const wrap = el('div', `research-step ${step.status}${state.closedSteps.has(step.id) ? ' closed' : ''}`);
+
+      const headBtn = el('button', 'research-step-head');
+      headBtn.type = 'button';
+      headBtn.append(researchIcon('clock'), el('span', 'label', step.label));
+      if (step.queries.length) headBtn.append(researchIcon('chev', 'chev'));
+      headBtn.addEventListener('click', () => {
+        if (state.closedSteps.has(step.id)) state.closedSteps.delete(step.id);
+        else state.closedSteps.add(step.id);
+        wrap.classList.toggle('closed');
+      });
+      wrap.appendChild(headBtn);
+
+      if (step.queries.length) {
+        const list = el('div', 'research-queries');
+        for (const q of step.queries) {
+          const row = el('div', 'research-query');
+          row.append(researchIcon('search'), el('span', '', q));
+          list.appendChild(row);
+        }
+        wrap.appendChild(list);
+      }
+      return wrap;
+    })
+  );
 }
 
 function updateResearchCard(refs, snap) {
-  refs.pct.textContent = `${snap.progress}%`;
+  const done = (snap.steps || []).filter((s) => s.status === 'done').length;
+  refs.sumText.textContent = done ? `作業中・${done} ステップ完了` : '作業中';
   refs.fill.style.width = `${snap.progress}%`;
-  const phase = RESEARCH_PHASE_LABEL[snap.status] || snap.status;
-  refs.step.textContent = snap.currentStep && snap.currentStep !== phase ? `${phase} — ${snap.currentStep}` : phase;
+  renderResearchSteps(refs, snap);
+  refs.thinking.textContent = RESEARCH_THINKING_LABEL[snap.status] || '思考中';
   refs.stats.textContent =
-    `検索 ${snap.stats.searches} 回 ・ 参照 ${snap.stats.chunksSeen} チャンク ・ ` +
-    `証拠 ${snap.stats.evidence} 件 ・ 経過 ${fmtElapsed(snap.elapsedMs)}`;
-
-  if (snap.interimFindings?.length) {
-    refs.findings.hidden = false;
-    refs.findings.replaceChildren(
-      ...snap.interimFindings.map((f) => el('li', '', `${f.claim}（根拠 ${f.evidenceCount} 件）`))
-    );
-  }
+    `検索 ${snap.stats.searches} 回 ・ 証拠 ${snap.stats.evidence} 件 ・ 経過 ${fmtElapsed(snap.elapsedMs)}`;
 }
 
 function finishResearchCard(refs, snap) {
-  refs.card.classList.add('done');
   refs.cancel.remove();
+  refs.thinking.remove();
   refs.fill.style.width = '100%';
+  renderResearchSteps(refs, snap);
+
+  // 完了後はステップを畳み、サマリ行だけ残す（クリックで展開できる）
+  refs.state.collapsed = true;
+  refs.card.classList.add('collapsed');
+
+  const done = (snap.steps || []).filter((s) => s.status === 'done').length;
   if (snap.status === 'completed') {
-    refs.title.textContent = snap.truncated ? '✅ 調査完了（予算上限で打ち切り）' : '✅ 調査完了';
-    refs.step.textContent = `検索 ${snap.stats.searches} 回・${fmtElapsed(snap.elapsedMs)} で完了`;
+    refs.sumText.textContent =
+      `✅ 調査完了・${done} ステップ` + (snap.truncated ? '（予算上限で打ち切り）' : '');
+    refs.stats.textContent = `検索 ${snap.stats.searches} 回 ・ 証拠 ${snap.stats.evidence} 件 ・ ${fmtElapsed(snap.elapsedMs)} で完了`;
   } else if (snap.status === 'cancelled') {
-    refs.title.textContent = '⏹ 調査をキャンセルしました';
-    refs.step.textContent = '';
+    refs.sumText.textContent = `⏹ 調査をキャンセルしました（${done} ステップ完了）`;
   } else {
-    refs.title.textContent = '⚠ 調査に失敗しました';
-    refs.step.textContent = '';
+    refs.sumText.textContent = '⚠ 調査に失敗しました';
   }
 }
 

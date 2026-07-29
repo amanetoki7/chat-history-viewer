@@ -41,22 +41,30 @@
   .deep-toggle input { display: none; }
   .deep-toggle:hover { border-color: var(--accent); }
   .deep-toggle:has(input:checked) { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-  .research-card { align-self: flex-start; width: 92%; background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
-  .research-head { display: flex; align-items: center; gap: 10px; }
-  .research-title { font-weight: 600; }
-  .research-pct { color: var(--text-dim); font-size: .85rem; }
+  .research-card { align-self: flex-start; width: 92%; background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; }
+  .research-head { display: flex; align-items: center; gap: 8px; }
+  .research-summary { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 0; color: var(--text-dim); font: inherit; font-size: .85rem; cursor: pointer; }
+  .research-summary:hover { color: var(--text); }
+  .research-summary .chev { display: inline-flex; transition: transform .2s; }
+  .research-card.collapsed .research-summary .chev { transform: rotate(-90deg); }
   .research-cancel { margin-left: auto; background: none; border: 1px solid var(--border-soft); border-radius: 999px; color: var(--text-dim); font: inherit; font-size: .75rem; padding: 3px 10px; cursor: pointer; }
   .research-cancel:hover { color: #e5534b; border-color: #e5534b; }
-  .research-bar { height: 6px; background: var(--bg-hover); border-radius: 999px; overflow: hidden; }
+  .research-bar { height: 4px; background: var(--bg-hover); border-radius: 999px; overflow: hidden; }
   .research-bar i { display: block; height: 100%; width: 0%; background: var(--accent); border-radius: 999px; transition: width .5s ease; }
-  .research-step { color: var(--text-dim); font-size: .85rem; }
-  .research-step::after { content: '…'; }
-  .research-card.done .research-step::after { content: ''; }
+  .research-body { display: flex; flex-direction: column; }
+  .research-card.collapsed :is(.research-body, .research-bar, .research-thinking) { display: none; }
+  .research-step-head { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 6px 0 2px; color: var(--text); font: inherit; font-size: .88rem; text-align: left; cursor: pointer; }
+  .research-step-head .icon, .research-query .icon { display: inline-flex; color: var(--text-dim); flex: none; }
+  .research-step-head .chev { display: inline-flex; color: var(--text-faint); transition: transform .2s; }
+  .research-step.closed .chev { transform: rotate(-90deg); }
+  .research-step.closed .research-queries { display: none; }
+  .research-step:is(.pending, .skipped) .label { color: var(--text-faint); }
+  .research-step.running .label::after { content: '…'; }
+  .research-queries { display: flex; flex-direction: column; gap: 3px; padding: 2px 0 6px 27px; }
+  .research-query { display: flex; align-items: center; gap: 8px; color: var(--text-dim); font-size: .8rem; }
+  .research-thinking { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: .85rem; padding-top: 2px; animation: research-pulse 1.6s ease-in-out infinite; }
+  @keyframes research-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
   .research-stats { color: var(--text-faint); font-size: .75rem; }
-  .research-findings { margin: 0; padding: 8px 0 0; border-top: 1px dashed var(--border); list-style: none; display: flex; flex-direction: column; gap: 4px; }
-  .research-findings li { font-size: .8rem; color: var(--text-dim); }
-  .research-findings li::before { content: '✓ '; color: var(--accent); }
-  .research-card.done { opacity: .85; }
 </style>
 </head>
 <body>

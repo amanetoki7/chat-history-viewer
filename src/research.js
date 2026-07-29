@@ -93,6 +93,8 @@ export function createResearchJob(question, { budgetMinutes } = {}) {
     cancelRequested: false,
     truncated: false,
     stats: { searches: 0, modelCalls: 0, chunksSeen: 0, iterations: 0, evidence: 0 },
+    /** 進捗 UI に出す調査ステップ: {id, label, status: pending|running|done|skipped, queries: string[]} */
+    steps: [],
     plan: null,
     /** サブ質問 id → Finding[]（再開用チェックポイント） */
     subResults: {},
@@ -152,6 +154,7 @@ export function jobSnapshot(job) {
     budgetMs: job.budgetMs,
     elapsedMs: job.startedAt ? (job.completedAt || Date.now()) - job.startedAt : 0,
     stats: job.stats,
+    steps: job.steps || [],
     interimFindings: job.interimFindings,
     report: job.report,
     sources: job.sources,
@@ -206,6 +209,7 @@ async function loadJobs(log) {
   let requeued = 0;
   for (const job of data.jobs) {
     if (!job?.id) continue;
+    if (!Array.isArray(job.steps)) job.steps = [];
     // 実行途中で落ちたジョブは再キュー。計画・完了済みサブ質問は引き継がれる
     if (!TERMINAL_STATUSES.has(job.status)) {
       job.status = 'queued';
@@ -302,6 +306,35 @@ function update(job, patch) {
   scheduleSave();
 }
 
+/* ------------------------------------------------------------ ステップ記録 */
+
+/** 進捗 UI 用のステップを追加・更新する（同じ id は状態だけ更新）。 */
+function upsertStep(job, id, label, status = 'running') {
+  let step = job.steps.find((s) => s.id === id);
+  if (!step) {
+    step = { id, label, status, queries: [] };
+    job.steps.push(step);
+  } else {
+    step.status = status;
+  }
+  scheduleSave();
+  return step;
+}
+
+function setStepStatus(job, id, status) {
+  const step = job.steps.find((s) => s.id === id);
+  if (step) step.status = status;
+  scheduleSave();
+}
+
+/** ステップの下に、実行した検索ワードを記録する（重複は除く）。 */
+function addStepQueries(job, id, queries) {
+  const step = job.steps.find((s) => s.id === id);
+  if (!step) return;
+  for (const q of queries) if (q && !step.queries.includes(q)) step.queries.push(q);
+  scheduleSave();
+}
+
 /* ------------------------------------------------------------ 1. 調査計画 */
 
 const PLAN_SCHEMA = {
@@ -341,6 +374,7 @@ const PLANNER_SYSTEM = `あなたは個人の AI チャット履歴アーカイ�
 質問に本格的に答えるための調査計画を立て、JSON だけを出力してください。
 
 計画の立て方:
+- サブ質問と semanticQuery は必ず日本語で書く（画面に表示され、日本語の履歴を意味検索するため）
 - 質問を 2〜6 件のサブ質問に分解する。それぞれ独立に検索・検証できる粒度にする
 - 時系列の変化を問う質問なら、期間を分けたサブ質問（初期 / 最近など）を作る
 - ユーザー本人の好み・経験を問うなら scope を "user" にする
@@ -570,6 +604,7 @@ async function investigateSubQuestion(job, subQuestion) {
       break;
     }
 
+    addStepQueries(job, subQuestion.id, queries);
     const candidates = await collectCandidates(job, subQuestion, queries, semanticQuery, seenKeys);
     job.stats.iterations++;
     if (!candidates.length) break; // 新しい情報が増えない
@@ -779,7 +814,10 @@ async function runResearch(job) {
   // 1. 調査計画（再開時はチェックポイントを再利用）
   if (!job.plan) {
     update(job, { status: 'planning', progress: 4, currentStep: '調査計画を作成しています' });
+    upsertStep(job, 'plan', '調査計画を作成しています');
     job.plan = await createPlan(job);
+    setStepStatus(job, 'plan', 'done');
+    for (const sq of job.plan.subQuestions) upsertStep(job, sq.id, sq.question, 'pending');
     scheduleSave(true);
   }
   assertCanContinue(job);
@@ -788,7 +826,10 @@ async function runResearch(job) {
   const subQuestions = job.plan.subQuestions;
   for (let i = 0; i < subQuestions.length; i++) {
     const sq = subQuestions[i];
-    if (job.subResults[sq.id]) continue; // 再開時: 調査済み
+    if (job.subResults[sq.id]) {
+      setStepStatus(job, sq.id, 'done'); // 再開時: 調査済み
+      continue;
+    }
     assertCanContinue(job);
     if (deadlineReached(job, BUDGET.reportReserveMs) || job.stats.searches >= BUDGET.maxSearches || !canCallModel(job)) {
       job.truncated = true;
@@ -800,11 +841,16 @@ async function runResearch(job) {
       progress: 8 + Math.round((i / subQuestions.length) * 60),
       currentStep: sq.question,
     });
+    upsertStep(job, sq.id, sq.question, 'running');
 
     job.subResults[sq.id] = await investigateSubQuestion(job, sq);
+    setStepStatus(job, sq.id, 'done');
     updateInterim(job);
     scheduleSave(true);
   }
+
+  // 予算切れで着手できなかったサブ質問
+  for (const step of job.steps) if (step.status === 'pending') step.status = 'skipped';
 
   const allFindings = Object.values(job.subResults).flat();
   assertCanContinue(job);
@@ -813,7 +859,9 @@ async function runResearch(job) {
   let verified = allFindings;
   if (allFindings.length >= 2 && canCallModel(job) && !deadlineReached(job, BUDGET.reportReserveMs / 2)) {
     update(job, { status: 'verifying', progress: 74, currentStep: '根拠の統合と矛盾の確認をしています' });
+    upsertStep(job, 'verify', '根拠の統合と矛盾の確認をしています');
     verified = await verifyFindings(job, allFindings);
+    setStepStatus(job, 'verify', 'done');
   }
   job.findings = verified;
   updateInterim(job);
@@ -821,5 +869,7 @@ async function runResearch(job) {
 
   // 4. レポート生成（ストリーミングで job.report に流し込む）
   update(job, { status: 'writing', progress: 86, currentStep: '最終レポートを作成しています', report: '' });
+  upsertStep(job, 'write', '最終レポートを作成しています');
   await writeReport(job, verified);
+  setStepStatus(job, 'write', 'done');
 }
