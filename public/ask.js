@@ -168,25 +168,28 @@ function fmtElapsed(ms) {
 const RESEARCH_ICONS = {
   clock:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l2.8 1.8"/></svg>',
+  plan:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>',
+  check:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5"/></svg>',
+  pen:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>',
+  spark:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2c.6 4.8 3.2 7.4 8 8-4.8.6-7.4 3.2-8 8-.6-4.8-3.2-7.4-8-8 4.8-.6 7.4-3.2 8-8Z"/></svg>',
   search:
     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5 16 16"/></svg>',
   chev:
     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
 };
 
+/** ステップ id → 工程アイコン（それ以外は時計） */
+const RESEARCH_STEP_ICON = { plan: 'plan', verify: 'check', write: 'pen' };
+
 function researchIcon(name, className = 'icon') {
   const span = el('span', className);
   span.innerHTML = RESEARCH_ICONS[name];
   return span;
 }
-
-const RESEARCH_THINKING_LABEL = {
-  queued: '順番を待っています',
-  planning: '思考中',
-  searching: '思考中',
-  verifying: '検証中',
-  writing: 'レポートを作成中',
-};
 
 /** 進捗カード（ステップと検索ワードの一覧・キャンセル）を作る。 */
 function addResearchCard(jobId) {
@@ -217,13 +220,15 @@ function addResearchCard(jobId) {
   bar.appendChild(fill);
 
   const body = el('div', 'research-body');
-  const thinking = el('div', 'research-thinking', '思考中');
+  const thinking = el('div', 'research-thinking');
+  const thinkingText = el('span', '', '思考中');
+  thinking.append(researchIcon('spark'), thinkingText);
   const stats = el('div', 'research-stats', '');
 
   card.append(head, bar, body, thinking, stats);
   log.appendChild(card);
   scrollDown();
-  return { card, state, sumText, fill, body, thinking, stats, cancel };
+  return { card, state, sumText, fill, body, thinking, thinkingText, stats, cancel };
 }
 
 /** ステップ一覧（各ステップの下に実行した検索ワード）を描画する。 */
@@ -235,7 +240,7 @@ function renderResearchSteps(refs, snap) {
 
       const headBtn = el('button', 'research-step-head');
       headBtn.type = 'button';
-      headBtn.append(researchIcon('clock'), el('span', 'label', step.label));
+      headBtn.append(researchIcon(RESEARCH_STEP_ICON[step.id] || 'clock'), el('span', 'label', step.label));
       if (step.queries.length) headBtn.append(researchIcon('chev', 'chev'));
       headBtn.addEventListener('click', () => {
         if (state.closedSteps.has(step.id)) state.closedSteps.delete(step.id);
@@ -263,7 +268,11 @@ function updateResearchCard(refs, snap) {
   refs.sumText.textContent = done ? `作業中・${done} ステップ完了` : '作業中';
   refs.fill.style.width = `${snap.progress}%`;
   renderResearchSteps(refs, snap);
-  refs.thinking.textContent = RESEARCH_THINKING_LABEL[snap.status] || '思考中';
+  // 下段は「いま何をしているか」。計画中は Perplexity 風に「思考中」とだけ出す
+  refs.thinkingText.textContent =
+    snap.status === 'queued' ? '順番を待っています'
+    : snap.status === 'planning' ? '思考中'
+    : snap.currentStep || '思考中';
   refs.stats.textContent =
     `検索 ${snap.stats.searches} 回 ・ 証拠 ${snap.stats.evidence} 件 ・ 経過 ${fmtElapsed(snap.elapsedMs)}`;
 }

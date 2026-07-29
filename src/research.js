@@ -350,9 +350,13 @@ const PLAN_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['question', 'keywordQueries', 'semanticQuery', 'scope', 'from', 'to'],
+        required: ['question', 'stepLabel', 'keywordQueries', 'semanticQuery', 'scope', 'from', 'to'],
         properties: {
           question: { type: 'string', description: 'サブ質問（このサブ質問単体で調査できる粒度）' },
+          stepLabel: {
+            type: 'string',
+            description: '進捗画面に表示する短い活動ラベル。「最近の関心の始まりを調べている」のような現在進行形の日本語で 25 字以内',
+          },
           keywordQueries: {
             type: 'array',
             minItems: 1,
@@ -373,9 +377,12 @@ const PLAN_SCHEMA = {
 const PLANNER_SYSTEM = `あなたは個人の AI チャット履歴アーカイブ（ChatGPT/Claude/Gemini 等との過去の全会話）を深く調査するためのリサーチプランナーです。
 質問に本格的に答えるための調査計画を立て、JSON だけを出力してください。
 
+重要: 出力に含むテキスト（goal・question・stepLabel・semanticQuery・keywordQueries）はすべて日本語で書くこと。
+画面に表示され、日本語の履歴を検索するため。英語で書いてよいのは、英語表記が一般的な固有名詞・技術用語のキーワードだけ（例: LM Studio, Obsidian）。
+
 計画の立て方:
-- サブ質問と semanticQuery は必ず日本語で書く（画面に表示され、日本語の履歴を意味検索するため）
 - 質問を 2〜6 件のサブ質問に分解する。それぞれ独立に検索・検証できる粒度にする
+- stepLabel は進捗画面に出す活動ラベル。「〜を調べている」「〜を確認している」のような現在進行形にする
 - 時系列の変化を問う質問なら、期間を分けたサブ質問（初期 / 最近など）を作る
 - ユーザー本人の好み・経験を問うなら scope を "user" にする
 - 「変化の理由」「矛盾の有無」など、単純検索では出ない論点もサブ質問にする
@@ -419,6 +426,7 @@ async function createPlan(job) {
     .map((sq, i) => ({
       id: `q${i + 1}`,
       question: String(sq.question),
+      stepLabel: String(sq.stepLabel || '').trim() || String(sq.question),
       keywordQueries: sq.keywordQueries.map(String).filter(Boolean).slice(0, 4),
       semanticQuery: String(sq.semanticQuery || sq.question),
       scope: ['user', 'assistant'].includes(sq.scope) ? sq.scope : 'all',
@@ -475,6 +483,9 @@ const EVAL_SCHEMA = {
 };
 
 const EVALUATOR_SYSTEM = `あなたは調査アシスタントです。個人の AI チャット履歴から集めた抜粋を証拠として評価します。
+
+重要: 出力（claim・remainingGaps・followUpQueries）はすべて日本語で書くこと。
+followUpQueries のみ、英語表記が一般的な固有名詞・技術用語は英語可（例: LM Studio, Obsidian）。
 
 ルール:
 - findings の claim は、抜粋に実際に書かれていることだけから作る。推測で補わない
@@ -605,21 +616,19 @@ async function investigateSubQuestion(job, subQuestion) {
     }
 
     addStepQueries(job, subQuestion.id, queries);
+    update(job, { currentStep: `「${queries[0]}」${queries.length > 1 ? 'などで' : 'で'}検索している` });
     const candidates = await collectCandidates(job, subQuestion, queries, semanticQuery, seenKeys);
     job.stats.iterations++;
     if (!candidates.length) break; // 新しい情報が増えない
 
     assertCanContinue(job);
+    update(job, { currentStep: '集めた抜粋から根拠を評価している' });
     const evaluated = await evaluateEvidence(job, subQuestion, candidates);
     findings = mergeFindings(findings, evaluated.findings);
 
     if (evaluated.sufficient || !evaluated.followUpQueries.length) break;
     queries = evaluated.followUpQueries;
     semanticQuery = evaluated.remainingGaps[0] || semanticQuery;
-
-    update(job, {
-      currentStep: `${subQuestion.question}（追加調査 ${iteration + 2} 回目）`,
-    });
   }
 
   return findings;
@@ -651,6 +660,8 @@ const VERIFY_SCHEMA = {
 };
 
 const VERIFIER_SYSTEM = `あなたは調査結果の検証担当です。複数のサブ調査から集まった主張（findings）と証拠を横断して整理します。
+
+重要: 主張（claim）はすべて日本語で書くこと。
 
 ルール:
 - 同じ内容の主張は 1 つに統合する（evidenceIds もまとめる）
@@ -813,11 +824,11 @@ function updateInterim(job) {
 async function runResearch(job) {
   // 1. 調査計画（再開時はチェックポイントを再利用）
   if (!job.plan) {
-    update(job, { status: 'planning', progress: 4, currentStep: '調査計画を作成しています' });
-    upsertStep(job, 'plan', '調査計画を作成しています');
+    update(job, { status: 'planning', progress: 4, currentStep: '調査の計画を立てている' });
+    upsertStep(job, 'plan', '調査の計画を立てている');
     job.plan = await createPlan(job);
     setStepStatus(job, 'plan', 'done');
-    for (const sq of job.plan.subQuestions) upsertStep(job, sq.id, sq.question, 'pending');
+    for (const sq of job.plan.subQuestions) upsertStep(job, sq.id, sq.stepLabel || sq.question, 'pending');
     scheduleSave(true);
   }
   assertCanContinue(job);
@@ -839,9 +850,9 @@ async function runResearch(job) {
     update(job, {
       status: 'searching',
       progress: 8 + Math.round((i / subQuestions.length) * 60),
-      currentStep: sq.question,
+      currentStep: sq.stepLabel || sq.question,
     });
-    upsertStep(job, sq.id, sq.question, 'running');
+    upsertStep(job, sq.id, sq.stepLabel || sq.question, 'running');
 
     job.subResults[sq.id] = await investigateSubQuestion(job, sq);
     setStepStatus(job, sq.id, 'done');
@@ -858,8 +869,8 @@ async function runResearch(job) {
   // 3. 横断検証（時間・予算が残っているときだけ）
   let verified = allFindings;
   if (allFindings.length >= 2 && canCallModel(job) && !deadlineReached(job, BUDGET.reportReserveMs / 2)) {
-    update(job, { status: 'verifying', progress: 74, currentStep: '根拠の統合と矛盾の確認をしています' });
-    upsertStep(job, 'verify', '根拠の統合と矛盾の確認をしています');
+    update(job, { status: 'verifying', progress: 74, currentStep: '根拠の統合と矛盾を確認している' });
+    upsertStep(job, 'verify', '根拠の統合と矛盾を確認している');
     verified = await verifyFindings(job, allFindings);
     setStepStatus(job, 'verify', 'done');
   }
@@ -868,8 +879,8 @@ async function runResearch(job) {
   assertCanContinue(job);
 
   // 4. レポート生成（ストリーミングで job.report に流し込む）
-  update(job, { status: 'writing', progress: 86, currentStep: '最終レポートを作成しています', report: '' });
-  upsertStep(job, 'write', '最終レポートを作成しています');
+  update(job, { status: 'writing', progress: 86, currentStep: 'レポートを執筆している', report: '' });
+  upsertStep(job, 'write', '最終レポートを作成している');
   await writeReport(job, verified);
   setStepStatus(job, 'write', 'done');
 }
