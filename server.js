@@ -5,9 +5,11 @@ import { CHAT_ROOT, PORT, ROOT_DIR, SOURCE_META } from './src/config.js';
 import { ensureIndex, index, loadConversation, resolveEntryPath } from './src/indexer.js';
 import { search, parseQuery, buildSnippets } from './src/search.js';
 import { splitThreadSections } from './src/parser.js';
+import { planQueries, retrieve, answerStream } from './src/ask.js';
 
 const app = express();
 app.disable('x-powered-by');
+app.use(express.json({ limit: '1mb' }));
 
 let indexing = false;
 
@@ -122,6 +124,50 @@ app.get('/api/raw', async (req, res) => {
     res.type('text/plain; charset=utf-8').send(await fs.readFile(abs, 'utf8'));
   } catch {
     res.status(404).send('not found');
+  }
+});
+
+app.post('/api/ask', async (req, res) => {
+  const question = String(req.body?.question || '').trim();
+  const history = Array.isArray(req.body?.history)
+    ? req.body.history
+        .filter((t) => t && ['user', 'assistant'].includes(t.role) && typeof t.content === 'string')
+        .slice(-20)
+    : [];
+  if (!question) return res.status(400).json({ error: 'question is required' });
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  const send = (event, data) => {
+    if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    send('status', { phase: 'planning' });
+    const plan = await planQueries(question, history);
+    send('status', { phase: 'searching', queries: plan.queries.map((q) => q.q) });
+
+    const items = await retrieve(plan);
+
+    send('status', { phase: 'answering' });
+    const { kept } = await answerStream(question, history, items, (delta) => send('delta', { text: delta }));
+
+    send('sources', {
+      items: kept.map(({ n, relPath, title, source, sourceLabel, date }) => ({ n, relPath, title, source, sourceLabel, date })),
+    });
+    send('done', {});
+  } catch (err) {
+    console.error('[ask] failed:', err);
+    const authFailed = err?.status === 401 || /Could not resolve authentication|x-api-key/i.test(err?.message || '');
+    const message = authFailed
+      ? 'Anthropic API の認証に失敗しました。環境変数 ANTHROPIC_API_KEY を設定してサーバーを再起動してください。'
+      : err?.message || '回答の生成に失敗しました。';
+    send('error', { message });
+  } finally {
+    res.end();
   }
 });
 
