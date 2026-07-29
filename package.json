@@ -9,7 +9,6 @@
     "reindex": "node server.js --reindex"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.115.0",
     "@highlightjs/cdn-assets": "^11.11.1",
     "express": "^4.21.2",
     "markdown-it": "^14.1.0"

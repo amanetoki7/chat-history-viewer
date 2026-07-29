@@ -161,9 +161,12 @@ app.post('/api/ask', async (req, res) => {
     send('done', {});
   } catch (err) {
     console.error('[ask] failed:', err);
-    const authFailed = err?.status === 401 || /Could not resolve authentication|x-api-key/i.test(err?.message || '');
-    const message = authFailed
-      ? 'Anthropic API の認証に失敗しました。環境変数 ANTHROPIC_API_KEY を設定してサーバーを再起動してください。'
+    const unreachable =
+      err?.cause?.code === 'ECONNREFUSED' ||
+      (err?.cause?.errors || []).some((e) => e?.code === 'ECONNREFUSED') ||
+      /fetch failed|ECONNREFUSED/i.test(err?.message || '');
+    const message = unreachable
+      ? 'LM Studio に接続できません。LM Studio を起動し、ローカルサーバー（既定 http://localhost:1234）を開始してください。'
       : err?.message || '回答の生成に失敗しました。';
     send('error', { message });
   } finally {
