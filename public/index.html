@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Chat History Viewer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>">
+<link rel="stylesheet" href="/vendor/hljs/styles/github-dark.min.css" id="hljs-dark">
+<link rel="stylesheet" href="/vendor/hljs/styles/github.min.css" id="hljs-light" disabled>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn only-narrow" id="btn-menu" title="フィルタ" aria-label="フィルタ">☰</button>
+  <div class="brand"><span class="brand-mark">💬</span><span class="brand-text">AI Chat History</span></div>
+
+  <div class="searchbar">
+    <span class="search-icon" aria-hidden="true">🔍</span>
+    <input id="q" type="search" placeholder="全会話を検索  （&quot;完全一致&quot; / -除外 が使えます）" autocomplete="off" spellcheck="false">
+    <span class="search-hint" id="search-hint"></span>
+  </div>
+
+  <div class="topbar-actions">
+    <select id="scope" title="検索対象" aria-label="検索対象">
+      <option value="all">全文</option>
+      <option value="user">自分の発言</option>
+      <option value="assistant">AIの回答</option>
+    </select>
+    <select id="sort" title="並び順" aria-label="並び順">
+      <option value="relevance">関連度</option>
+      <option value="newest">新しい順</option>
+      <option value="oldest">古い順</option>
+      <option value="longest">長い順</option>
+    </select>
+    <button class="icon-btn" id="btn-theme" title="テーマ切替" aria-label="テーマ切替">◐</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <section class="panel">
+      <h2>ソース</h2>
+      <div id="sources" class="source-list"></div>
+    </section>
+
+    <section class="panel">
+      <h2>期間</h2>
+      <div class="date-row">
+        <input type="date" id="from" aria-label="開始日">
+        <span class="tilde">〜</span>
+        <input type="date" id="to" aria-label="終了日">
+      </div>
+      <div class="chip-row" id="quick-dates">
+        <button class="chip" data-days="7">1週間</button>
+        <button class="chip" data-days="30">1か月</button>
+        <button class="chip" data-days="365">1年</button>
+        <button class="chip" data-days="0">全期間</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>その他</h2>
+      <label class="check"><input type="checkbox" id="favorite"> お気に入りのみ</label>
+      <label class="check"><input type="checkbox" id="archived" checked> アーカイブを含む</label>
+      <button class="btn-block" id="btn-reset">条件をリセット</button>
+    </section>
+
+    <section class="panel stats" id="stats"></section>
+  </aside>
+
+  <section class="results" id="results-pane">
+    <div class="results-head">
+      <span id="result-count">読み込み中…</span>
+      <span id="result-took" class="took"></span>
+    </div>
+    <ol class="result-list" id="result-list"></ol>
+    <div id="result-more" class="result-more"></div>
+  </section>
+
+  <main class="reader" id="reader">
+    <div class="empty" id="reader-empty">
+      <div class="empty-mark">💬</div>
+      <p>左の一覧から会話を選ぶと、ここにチャットが表示されます。</p>
+      <p class="empty-keys"><kbd>/</kbd> 検索　<kbd>J</kbd>/<kbd>K</kbd> 一覧移動　<kbd>Esc</kbd> 閉じる</p>
+    </div>
+    <article class="conversation" id="conversation" hidden></article>
+  </main>
+
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<script src="/vendor/markdown-it/markdown-it.min.js"></script>
+<script src="/vendor/hljs/highlight.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
