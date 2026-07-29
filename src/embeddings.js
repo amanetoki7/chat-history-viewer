@@ -10,7 +10,7 @@
  * 有効判定と同じ条件でそのまま原文抽出に使える。
  *
  * 環境変数:
- *   LMSTUDIO_EMBED_MODEL … 未指定なら /v1/models から embed を含む id を自動選択
+ *   LMSTUDIO_EMBED_MODEL … 未指定なら既定モデル（ruri-v3）→ embed を含む id の順に自動選択
  */
 
 import fs from 'node:fs/promises';
@@ -46,19 +46,34 @@ const state = {
 
 /* ------------------------------------------------------------ LM Studio */
 
+/** 日本語検索に強い Ruri v3 を優先して使う */
+const PREFERRED_EMBED_MODEL = 'text-embedding-ruri-v3-310m';
+
 async function resolveEmbedModel() {
   if (process.env.LMSTUDIO_EMBED_MODEL) return process.env.LMSTUDIO_EMBED_MODEL;
   const res = await fetch(`${BASE_URL}/models`);
   if (!res.ok) throw new Error(`LM Studio /models が ${res.status} を返しました`);
   const { data } = await res.json();
-  const m = (data || []).find((x) => /embed/i.test(x.id));
-  if (!m) throw new Error('LM Studio に埋め込みモデルがありません。nomic-embed-text などをダウンロードしてください。');
-  return m.id;
+  const ids = (data || []).map((x) => x.id);
+  if (ids.includes(PREFERRED_EMBED_MODEL)) return PREFERRED_EMBED_MODEL;
+  const m = ids.find((id) => /embed/i.test(id));
+  if (!m) throw new Error('LM Studio に埋め込みモデルがありません。ruri-v3 などをダウンロードしてください。');
+  return m;
 }
 
-/** nomic-embed 系はタスク接頭辞を付けると精度が上がる */
-const docPrefix = () => (/nomic/i.test(state.model || '') ? 'search_document: ' : '');
-const queryPrefix = () => (/nomic/i.test(state.model || '') ? 'search_query: ' : '');
+/** 埋め込みモデルごとのタスク接頭辞（付けると検索精度が上がる） */
+function docPrefix() {
+  const m = state.model || '';
+  if (/ruri/i.test(m)) return '検索文書: ';
+  if (/nomic/i.test(m)) return 'search_document: ';
+  return '';
+}
+function queryPrefix() {
+  const m = state.model || '';
+  if (/ruri/i.test(m)) return '検索クエリ: ';
+  if (/nomic/i.test(m)) return 'search_query: ';
+  return '';
+}
 
 function normalize(v) {
   let s = 0;
