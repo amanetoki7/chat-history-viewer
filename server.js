@@ -7,6 +7,15 @@ import { search, parseQuery, buildSnippets } from './src/search.js';
 import { splitThreadSections } from './src/parser.js';
 import { planQueries, retrieve, answerStream } from './src/ask.js';
 import { ensureEmbeddings, embeddingsStatus } from './src/embeddings.js';
+import {
+  createResearchJob,
+  getJob,
+  getActiveJob,
+  cancelJob,
+  jobSnapshot,
+  startResearchWorker,
+  TERMINAL_STATUSES,
+} from './src/research.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -175,6 +184,67 @@ app.post('/api/ask', async (req, res) => {
   }
 });
 
+/* ------------------------------------------------- Deep リサーチ（非同期ジョブ） */
+
+app.post('/api/research', (req, res) => {
+  const question = String(req.body?.question || '').trim();
+  if (!question) return res.status(400).json({ error: 'question is required' });
+
+  // 同時実行は 1 件。実行中があれば新規作成を断る（フロントは再接続できる）
+  const active = getActiveJob();
+  if (active) {
+    return res.status(409).json({ error: '調査が進行中です。完了かキャンセルを待ってください。', jobId: active.id });
+  }
+
+  const job = createResearchJob(question, { budgetMinutes: req.body?.budgetMinutes });
+  res.status(202).json({ jobId: job.id, status: job.status, budgetMs: job.budgetMs });
+});
+
+app.get('/api/research/active', (_req, res) => {
+  const job = getActiveJob();
+  res.json({ job: job ? jobSnapshot(job) : null });
+});
+
+app.get('/api/research/:id', (req, res) => {
+  const job = getJob(req.params.id);
+  if (!job) return res.status(404).json({ error: 'not found' });
+  res.json(jobSnapshot(job));
+});
+
+app.post('/api/research/:id/cancel', (req, res) => {
+  const ok = cancelJob(req.params.id);
+  if (!ok) return res.status(404).json({ error: 'not found or already finished' });
+  res.json({ ok: true });
+});
+
+app.get('/api/research/:id/events', (req, res) => {
+  const job = getJob(req.params.id);
+  if (!job) return res.status(404).json({ error: 'not found' });
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+
+  // 1 秒ごとにスナップショットを送り、終了状態になったら閉じる
+  const send = () => {
+    if (res.writableEnded) return true;
+    res.write(`event: progress\ndata: ${JSON.stringify(jobSnapshot(job))}\n\n`);
+    if (TERMINAL_STATUSES.has(job.status)) {
+      res.end();
+      return true;
+    }
+    return false;
+  };
+  if (!send()) {
+    const timer = setInterval(() => {
+      if (send()) clearInterval(timer);
+    }, 1000);
+    req.on('close', () => clearInterval(timer));
+  }
+});
+
 app.post('/api/reindex', async (_req, res) => {
   if (indexing) return res.status(409).json({ error: 'already indexing' });
   indexing = true;
@@ -207,6 +277,8 @@ ensureIndex({ force, log: (m) => console.log('[index]', m) })
   .then(() => {
     // 意味検索用の埋め込みは起動をブロックせずに裏で構築・更新する
     ensureEmbeddings({ log: (m) => console.log('[embed]', m) });
+    // Deep リサーチの Worker（再起動時は未完了ジョブを再キューして続行）
+    startResearchWorker({ log: (m) => console.log('[research]', m) });
     app.listen(PORT, () => {
       console.log('');
       console.log(`  AI Chat History Viewer`);

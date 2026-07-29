@@ -33,6 +33,30 @@
   .ask-empty .hint { cursor: pointer; color: var(--text-dim); background: var(--bg-elev); border: 1px solid var(--border-soft); border-radius: 999px; padding: 5px 14px; font-size: .85rem; }
   .ask-empty .hint:hover { color: var(--accent); border-color: var(--accent); }
   .ask-error { color: #e5534b; }
+
+  /* Deep リサーチ */
+  .ask-form-wrap { display: flex; flex-direction: column; gap: 6px; padding: 12px 0 4px; }
+  .ask-form { padding: 0; }
+  .deep-toggle { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: .8rem; color: var(--text-dim); background: var(--bg-elev); border: 1px solid var(--border-soft); border-radius: 999px; padding: 4px 12px; }
+  .deep-toggle input { display: none; }
+  .deep-toggle:hover { border-color: var(--accent); }
+  .deep-toggle:has(input:checked) { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .research-card { align-self: flex-start; width: 92%; background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .research-head { display: flex; align-items: center; gap: 10px; }
+  .research-title { font-weight: 600; }
+  .research-pct { color: var(--text-dim); font-size: .85rem; }
+  .research-cancel { margin-left: auto; background: none; border: 1px solid var(--border-soft); border-radius: 999px; color: var(--text-dim); font: inherit; font-size: .75rem; padding: 3px 10px; cursor: pointer; }
+  .research-cancel:hover { color: #e5534b; border-color: #e5534b; }
+  .research-bar { height: 6px; background: var(--bg-hover); border-radius: 999px; overflow: hidden; }
+  .research-bar i { display: block; height: 100%; width: 0%; background: var(--accent); border-radius: 999px; transition: width .5s ease; }
+  .research-step { color: var(--text-dim); font-size: .85rem; }
+  .research-step::after { content: '…'; }
+  .research-card.done .research-step::after { content: ''; }
+  .research-stats { color: var(--text-faint); font-size: .75rem; }
+  .research-findings { margin: 0; padding: 8px 0 0; border-top: 1px dashed var(--border); list-style: none; display: flex; flex-direction: column; gap: 4px; }
+  .research-findings li { font-size: .8rem; color: var(--text-dim); }
+  .research-findings li::before { content: '✓ '; color: var(--accent); }
+  .research-card.done { opacity: .85; }
 </style>
 </head>
 <body>
@@ -58,10 +82,15 @@
       </div>
     </div>
   </div>
-  <form class="ask-form" id="form">
-    <textarea id="input" rows="1" placeholder="履歴について質問…  (Enter で送信 / Shift+Enter で改行)"></textarea>
-    <button type="submit" id="send">送信</button>
-  </form>
+  <div class="ask-form-wrap">
+    <label class="deep-toggle" title="質問をサブ質問に分解し、検索と検証を繰り返す調査モード（数分〜十数分かかります）">
+      <input type="checkbox" id="deep-mode"> 🔬 詳しく調査
+    </label>
+    <form class="ask-form" id="form">
+      <textarea id="input" rows="1" placeholder="履歴について質問…  (Enter で送信 / Shift+Enter で改行)"></textarea>
+      <button type="submit" id="send">送信</button>
+    </form>
+  </div>
 </div>
 
 <script src="/vendor/markdown-it/markdown-it.min.js"></script>

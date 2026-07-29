@@ -49,6 +49,23 @@ npm run reindex                                      # 索引を強制的に作�
 - 元のチャット URL / Obsidian / Markdown 原文へのリンク
 - ダーク / ライトテーマ
 
+### 履歴に質問（RAG）と Deep リサーチ
+
+`/ask.html` では、ローカルの LM Studio（OpenAI 互換 API, 既定 `http://localhost:1234`）を使って
+チャット履歴全体へ自然言語で質問できる。履歴は一切外部へ送信しない。
+
+- **通常回答** … クエリ立案 → 全文検索＋意味検索（埋め込み） → 出典番号つき回答。数十秒
+- **🔬 詳しく調査（Deep リサーチ）** … 質問をサブ質問に分解し、検索 → 証拠評価 → 不足発見 →
+  再検索 → 横断検証（矛盾確認・引用監査） → レポート生成を調査予算の範囲で繰り返す非同期ジョブ。数分〜十数分
+
+Deep リサーチはジョブとして `.cache/research.json` に永続化され、SSE で進捗（工程・検索回数・
+途中経過の所見）を通知する。キャンセル可能で、サーバを再起動しても未完了ジョブは
+チェックポイント（調査計画・調査済みサブ質問）から再開される。時間切れの場合は
+そこまでの成果でレポートをまとめる。
+
+調査予算の既定値: 12 分・サブ質問最大 6 件・各サブ質問最大 3 回再検索・検索最大 40 回・
+LLM 呼び出し最大 30 回・同時実行 1 件（`src/research.js` の `BUDGET` で調整可）。
+
 ### キーボード
 
 | キー | 動作 |
@@ -83,6 +100,10 @@ src/config.js       ルートパス・ポート・ソース定義
 src/parser.js       Markdown → 会話構造への変換
 src/indexer.js      全探索・索引構築・.cache への永続化
 src/search.js       全文検索とスニペット生成
+src/llm.js          LM Studio クライアント（構造化出力・ストリーミング）
+src/embeddings.js   会話埋め込みの構築と意味検索
+src/ask.js          通常質問の RAG パイプライン
+src/research.js     Deep リサーチの非同期ジョブエンジン
 public/             フロントエンド（依存フレームワークなし）
 ```
 
@@ -115,4 +136,11 @@ public/             フロントエンド（依存フレームワークなし）
 | `GET /api/conversations?q=&sources=&from=&to=&scope=&sort=&offset=&limit=` | 検索・一覧（スニペット付き） |
 | `GET /api/conversation?id=<相対パス>` | 会話 1 件の全発言 |
 | `GET /api/raw?id=<相対パス>` | Markdown 原文 |
+| `POST /api/ask` | 履歴への質問（SSE で回答をストリーミング） |
+| `GET /api/embeddings/status` | 埋め込み構築の状態 |
+| `POST /api/research` | Deep リサーチのジョブ作成（`{question, budgetMinutes?}` → `{jobId}`） |
+| `GET /api/research/active` | 実行中・待機中のジョブ（ページ再読込時の再接続用） |
+| `GET /api/research/:id` | ジョブの状態・レポート |
+| `GET /api/research/:id/events` | 進捗の SSE ストリーム |
+| `POST /api/research/:id/cancel` | ジョブのキャンセル |
 | `POST /api/reindex` | 索引の再構築 |

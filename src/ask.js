@@ -18,8 +18,7 @@ import { index, loadConversation, resolveEntryPath, concatConversation } from '.
 import { search, parseQuery, buildSnippets } from './search.js';
 import { SOURCE_META } from './config.js';
 import { embeddingsReady, embedQuery, semanticSearch } from './embeddings.js';
-
-const BASE_URL = (process.env.LMSTUDIO_BASE_URL || 'http://localhost:1234/v1').replace(/\/+$/, '');
+import { resolveModel, chatJson, chatStream } from './llm.js';
 
 /** 回答コンテキストに載せる抜粋の総量（文字数）の上限 */
 const CONTEXT_CHAR_BUDGET = Number(process.env.ASK_CONTEXT_CHARS) || 28_000;
@@ -27,47 +26,6 @@ const CONTEXT_CHAR_BUDGET = Number(process.env.ASK_CONTEXT_CHARS) || 28_000;
 const MAX_CONVERSATIONS = 12;
 /** クエリ 1 本あたり採用する上位ヒット数 */
 const HITS_PER_QUERY = 8;
-
-/* --------------------------------------------------- LM Studio クライアント */
-
-/** 使用モデルを決める。指定がなければロード済みモデル → モデル一覧の先頭。 */
-async function resolveModel() {
-  if (process.env.LMSTUDIO_MODEL) return process.env.LMSTUDIO_MODEL;
-
-  // LM Studio 拡張 API でロード済みモデルを探す（JIT ロード待ちを避ける）
-  try {
-    const res = await fetch(BASE_URL.replace(/\/v1$/, '') + '/api/v0/models');
-    if (res.ok) {
-      const { data } = await res.json();
-      const loaded = (data || []).find((m) => m.state === 'loaded' && m.type === 'llm');
-      if (loaded) return loaded.id;
-    }
-  } catch {
-    /* 拡張 API が無いバージョンは無視して /v1/models へ */
-  }
-
-  const res = await fetch(`${BASE_URL}/models`);
-  if (!res.ok) throw new Error(`LM Studio /models が ${res.status} を返しました`);
-  const { data } = await res.json();
-  const first = (data || []).find((m) => !/embed/i.test(m.id));
-  if (!first) throw new Error('LM Studio に利用可能なモデルがありません。モデルをロードしてください。');
-  return first.id;
-}
-
-/** /chat/completions を呼ぶ（非ストリーミング）。 */
-async function chat(body) {
-  const res = await fetch(`${BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`LM Studio がエラーを返しました (${res.status}): ${detail.slice(0, 300)}`);
-  }
-  const json = await res.json();
-  return json.choices?.[0]?.message?.content ?? '';
-}
 
 /* ------------------------------------------------------- 1. クエリ立案 */
 
@@ -115,20 +73,11 @@ scope の使い分け:
 出力形式（JSON のみ、他のテキスト禁止）:
 {"queries": [{"q": "キーワード", "scope": "all"}], "from": null, "to": null}`;
 
-/** テキストから最初の JSON オブジェクトを取り出す（構造化出力が使えないモデル向けの保険）。 */
-function extractJson(text) {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end <= start) throw new Error('クエリ立案の応答から JSON を取り出せませんでした。');
-  return JSON.parse(text.slice(start, end + 1));
-}
-
 /**
  * 質問と対話履歴から検索プランを作る。
  * @returns {Promise<{queries: Array<{q: string, scope: string}>, from: string|null, to: string|null}>}
  */
 export async function planQueries(question, history = []) {
-  const model = await resolveModel();
   const today = new Date().toISOString().slice(0, 10);
   const recent = history
     .slice(-6)
@@ -146,25 +95,7 @@ export async function planQueries(question, history = []) {
     },
   ];
 
-  let text;
-  try {
-    text = await chat({
-      model,
-      messages,
-      temperature: 0.1,
-      max_tokens: 2048,
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: 'search_plan', strict: true, schema: PLAN_SCHEMA },
-      },
-    });
-  } catch (err) {
-    // 構造化出力に未対応のモデルはプロンプト指示だけで再試行する
-    if (!/400|json_schema|response_format/i.test(err.message || '')) throw err;
-    text = await chat({ model, messages, temperature: 0.1, max_tokens: 2048 });
-  }
-
-  const plan = extractJson(text);
+  const plan = await chatJson({ messages, schema: PLAN_SCHEMA, name: 'search_plan', temperature: 0.1, maxTokens: 2048 });
   plan.queries = (plan.queries || []).filter((q) => q && q.q && String(q.q).trim());
   if (!plan.queries.length) plan.queries = [{ q: question.slice(0, 40), scope: 'all' }];
   return plan;
@@ -192,9 +123,11 @@ async function extractChunkTexts(entry, chunks, maxChars = 600) {
 /**
  * キーワード検索（クエリプラン）と意味検索（埋め込み）を実行し、
  * RRF（Reciprocal Rank Fusion）で会話単位に統合して抜粋を作る。
+ * @param {{queries: Array<{q, scope}>, from: string|null, to: string|null}} plan
+ * @param {string} question 意味検索に使う自然文（空なら意味検索なし）
  * @returns {Promise<Array<{n, relPath, title, source, date, snippets}>>}
  */
-export async function retrieve(plan, question = '') {
+export async function retrieve(plan, question = '', { maxConversations = MAX_CONVERSATIONS, hitsPerQuery = HITS_PER_QUERY, semanticTopK = 20 } = {}) {
   const from = plan.from ? Date.parse(plan.from) : null;
   const to = plan.to ? Date.parse(plan.to) + 86_399_999 : null;
 
@@ -221,12 +154,12 @@ export async function retrieve(plan, question = '') {
 
   for (const query of plan.queries) {
     const hits = runQuery(query.q, query.scope);
-    collect(hits, HITS_PER_QUERY);
+    collect(hits, hitsPerQuery);
     // 複数語 AND で空振りしたクエリは単語ごとに分解して再検索する
     if (!hits.length) {
       const words = parseQuery(query.q).terms.map((t) => t.text);
       if (words.length > 1) {
-        for (const word of words) collect(runQuery(word, query.scope), Math.ceil(HITS_PER_QUERY / 2));
+        for (const word of words) collect(runQuery(word, query.scope), Math.ceil(hitsPerQuery / 2));
       }
     }
   }
@@ -237,7 +170,7 @@ export async function retrieve(plan, question = '') {
   if (question && embeddingsReady()) {
     try {
       const qvec = await embedQuery(question);
-      for (const hit of semanticSearch(qvec, 20)) {
+      for (const hit of semanticSearch(qvec, semanticTopK)) {
         // 期間指定の質問では期間外の会話を混ぜない
         const entry = index.entries.find((e) => e.relPath === hit.relPath);
         if (!entry) continue;
@@ -269,7 +202,7 @@ export async function retrieve(plan, question = '') {
   const entryByPath = new Map(index.entries.map((e) => [e.relPath, e]));
   const chosen = [...fused.entries()]
     .sort((a, b) => b[1] - a[1])
-    .slice(0, MAX_CONVERSATIONS)
+    .slice(0, maxConversations)
     .map(([relPath]) => byPath.get(relPath) || { entry: entryByPath.get(relPath), score: 0 })
     .filter((h) => h.entry);
 
@@ -367,53 +300,17 @@ export async function answerStream(question, history, items, onDelta) {
     ? `<excerpts>\n${context}</excerpts>\n\n上の抜粋は私の過去のチャット履歴からの検索結果です。これを根拠に答えてください。\n\n質問: ${question}`
     : `私のチャット履歴を検索しましたが、関連する会話は見つかりませんでした。その前提で答えてください。\n\n質問: ${question}`;
 
-  const res = await fetch(`${BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const text = await chatStream(
+    {
       model,
-      stream: true,
       messages: [
         { role: 'system', content: ANSWER_SYSTEM },
         ...history.slice(-10).map((t) => ({ role: t.role, content: String(t.content) })),
         { role: 'user', content: userContent },
       ],
-    }),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`LM Studio がエラーを返しました (${res.status}): ${detail.slice(0, 300)}`);
-  }
-
-  // OpenAI 互換の SSE ストリームを読み、content の差分だけを流す
-  let text = '';
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let nl;
-    while ((nl = buf.indexOf('\n')) !== -1) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
-      if (!line.startsWith('data:')) continue;
-      const payload = line.slice(5).trim();
-      if (payload === '[DONE]') continue;
-      let json;
-      try {
-        json = JSON.parse(payload);
-      } catch {
-        continue;
-      }
-      const delta = json.choices?.[0]?.delta?.content;
-      if (delta) {
-        text += delta;
-        onDelta(delta);
-      }
-    }
-  }
+    },
+    onDelta
+  );
 
   if (!text.trim()) throw new Error('LM Studio から回答が返りませんでした。モデルがロードされているか確認してください。');
   return { text, kept };
