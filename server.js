@@ -6,6 +6,7 @@ import { ensureIndex, index, loadConversation, resolveEntryPath } from './src/in
 import { search, parseQuery, buildSnippets } from './src/search.js';
 import { splitThreadSections } from './src/parser.js';
 import { planQueries, retrieve, answerStream } from './src/ask.js';
+import { ensureEmbeddings, embeddingsStatus } from './src/embeddings.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -148,9 +149,9 @@ app.post('/api/ask', async (req, res) => {
   try {
     send('status', { phase: 'planning' });
     const plan = await planQueries(question, history);
-    send('status', { phase: 'searching', queries: plan.queries.map((q) => q.q) });
+    send('status', { phase: 'searching', queries: plan.queries.map((q) => q.q), semantic: embeddingsStatus().ready });
 
-    const items = await retrieve(plan);
+    const items = await retrieve(plan, question);
 
     send('status', { phase: 'answering' });
     const { kept } = await answerStream(question, history, items, (delta) => send('delta', { text: delta }));
@@ -180,11 +181,16 @@ app.post('/api/reindex', async (_req, res) => {
   res.json({ started: true });
   try {
     await ensureIndex({ force: true, log: (m) => console.log('[reindex]', m) });
+    await ensureEmbeddings({ log: (m) => console.log('[embed]', m) });
   } catch (err) {
     console.error('[reindex] failed:', err);
   } finally {
     indexing = false;
   }
+});
+
+app.get('/api/embeddings/status', (_req, res) => {
+  res.json(embeddingsStatus());
 });
 
 /* --------------------------------------------------------------- static */
@@ -199,6 +205,8 @@ const force = process.argv.includes('--reindex');
 
 ensureIndex({ force, log: (m) => console.log('[index]', m) })
   .then(() => {
+    // 意味検索用の埋め込みは起動をブロックせずに裏で構築・更新する
+    ensureEmbeddings({ log: (m) => console.log('[embed]', m) });
     app.listen(PORT, () => {
       console.log('');
       console.log(`  AI Chat History Viewer`);

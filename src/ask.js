@@ -14,9 +14,10 @@
  *   LMSTUDIO_MODEL    … 未指定ならロード済みモデルを自動選択
  */
 
-import { index } from './indexer.js';
+import { index, loadConversation, resolveEntryPath, concatConversation } from './indexer.js';
 import { search, parseQuery, buildSnippets } from './search.js';
 import { SOURCE_META } from './config.js';
+import { embeddingsReady, embedQuery, semanticSearch } from './embeddings.js';
 
 const BASE_URL = (process.env.LMSTUDIO_BASE_URL || 'http://localhost:1234/v1').replace(/\/+$/, '');
 
@@ -171,11 +172,29 @@ export async function planQueries(question, history = []) {
 
 /* --------------------------------------------------------- 2. 検索収集 */
 
+/** 意味検索チャンクの原文を読み直して表示用テキストにする。 */
+async function extractChunkTexts(entry, chunks, maxChars = 600) {
+  const abs = resolveEntryPath(entry.relPath);
+  const conv = abs
+    ? await loadConversation({ abs, relPath: entry.relPath, title: entry.title, mtimeMs: entry.mtimeMs, size: entry.size })
+    : null;
+  if (!conv) return [];
+  const { buf } = concatConversation(conv);
+  return chunks
+    .filter((c) => c.end <= buf.length)
+    .map((c) => {
+      const text = buf.subarray(c.start, c.end).toString('utf8').replace(/\s+/g, ' ').trim();
+      return text.length > maxChars ? text.slice(0, maxChars) + '…' : text;
+    })
+    .filter(Boolean);
+}
+
 /**
- * プランの各クエリを実行し、会話単位で統合したうえで抜粋を作る。
+ * キーワード検索（クエリプラン）と意味検索（埋め込み）を実行し、
+ * RRF（Reciprocal Rank Fusion）で会話単位に統合して抜粋を作る。
  * @returns {Promise<Array<{n, relPath, title, source, date, snippets}>>}
  */
-export async function retrieve(plan) {
+export async function retrieve(plan, question = '') {
   const from = plan.from ? Date.parse(plan.from) : null;
   const to = plan.to ? Date.parse(plan.to) + 86_399_999 : null;
 
@@ -212,13 +231,69 @@ export async function retrieve(plan) {
     }
   }
 
-  const selected = [...byPath.values()]
-    .sort((a, b) => b.score - a.score || b.entry.chatTime - a.entry.chatTime)
-    .slice(0, MAX_CONVERSATIONS);
+  // 意味検索（埋め込みが構築済みのときだけ）。質問文をそのままベクトル化して
+  // 全チャンクと照合し、会話単位に上位チャンクをまとめる
+  const semByConv = new Map(); // relPath → {sim, chunks: [{start,end,sim}]}
+  if (question && embeddingsReady()) {
+    try {
+      const qvec = await embedQuery(question);
+      for (const hit of semanticSearch(qvec, 20)) {
+        // 期間指定の質問では期間外の会話を混ぜない
+        const entry = index.entries.find((e) => e.relPath === hit.relPath);
+        if (!entry) continue;
+        if (Number.isFinite(from) && entry.chatTime < from) continue;
+        if (Number.isFinite(to) && entry.chatTime > to) continue;
+        const cur = semByConv.get(hit.relPath);
+        if (cur) {
+          cur.sim = Math.max(cur.sim, hit.sim);
+          if (cur.chunks.length < 2) cur.chunks.push(hit);
+        } else {
+          semByConv.set(hit.relPath, { sim: hit.sim, chunks: [hit] });
+        }
+      }
+    } catch (err) {
+      console.warn('[ask] 意味検索をスキップ:', err.message);
+    }
+  }
 
+  // RRF でキーワード順位と意味検索順位を融合する
+  const RRF_K = 60;
+  const fused = new Map(); // relPath → score
+  [...byPath.values()]
+    .sort((a, b) => b.score - a.score || b.entry.chatTime - a.entry.chatTime)
+    .forEach((hit, rank) => fused.set(hit.entry.relPath, (fused.get(hit.entry.relPath) || 0) + 1 / (RRF_K + rank)));
+  [...semByConv.entries()]
+    .sort((a, b) => b[1].sim - a[1].sim)
+    .forEach(([relPath], rank) => fused.set(relPath, (fused.get(relPath) || 0) + 1 / (RRF_K + rank)));
+
+  const entryByPath = new Map(index.entries.map((e) => [e.relPath, e]));
+  const chosen = [...fused.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_CONVERSATIONS)
+    .map(([relPath]) => byPath.get(relPath) || { entry: entryByPath.get(relPath), score: 0 })
+    .filter((h) => h.entry);
+
+  // キーワード側のスニペット
   const terms = [...termByText.values()];
-  const built = await buildSnippets(index, selected, terms, { perHit: 4, before: 120, after: 360 });
-  let withSnips = built.filter((item) => item.snippets.length);
+  const built = await buildSnippets(index, chosen, terms, { perHit: 4, before: 120, after: 360 });
+  const snipsByPath = new Map(built.map((b) => [b.relPath, b.snippets]));
+
+  // 意味検索チャンクの原文をスニペットとして追加する
+  for (const hit of chosen) {
+    const sem = semByConv.get(hit.entry.relPath);
+    if (!sem) continue;
+    const texts = await extractChunkTexts(hit.entry, sem.chunks);
+    const list = snipsByPath.get(hit.entry.relPath) || [];
+    for (const text of texts) {
+      if (list.length >= 6) break;
+      if (!list.some((s) => s.text.includes(text.slice(0, 80)))) list.push({ text, role: null, turnIndex: -1 });
+    }
+    snipsByPath.set(hit.entry.relPath, list);
+  }
+
+  let withSnips = chosen
+    .map((hit) => ({ ...hit.entry, snippets: snipsByPath.get(hit.entry.relPath) || [] }))
+    .filter((item) => item.snippets.length);
 
   // 時期指定の質問（「最近〜」など）でキーワードが空振りしたら、
   // その期間の新しい会話をプレビュー付きで根拠に回す
@@ -265,7 +340,8 @@ function buildContext(items) {
   for (const item of items) {
     let block = `[${item.n}] ${item.title}（${item.sourceLabel}${item.date ? `, ${item.date}` : ''}）\n`;
     for (const snip of item.snippets) {
-      block += `  - (${snip.role === 'user' ? 'ユーザー' : 'AI'}) ${snip.text}\n`;
+      const label = snip.role === 'user' ? 'ユーザー' : snip.role === 'assistant' ? 'AI' : '抜粋';
+      block += `  - (${label}) ${snip.text}\n`;
     }
     if (used + block.length > CONTEXT_CHAR_BUDGET && kept.length) break;
     parts.push(block);
