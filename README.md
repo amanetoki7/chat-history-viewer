@@ -105,7 +105,31 @@ src/embeddings.js   会話埋め込みの構築と意味検索
 src/ask.js          通常質問の RAG パイプライン
 src/research.js     Deep リサーチの非同期ジョブエンジン
 public/             フロントエンド（依存フレームワークなし）
+  styles.css        アプリの外枠（トップバー・サイドバー・一覧・リーダーの枠）
+  styles/chat.css   チャット本文の描画（共通ベース／変数の定義元）
+  styles/providers/ プロバイダーごとの描画スタイル（chatgpt.css / claude.css …）
 ```
+
+### プロバイダーごとの描画スタイル
+
+チャット本文の見た目はソース単位で差し替えられる。リーダーの `.conversation` と
+一覧の `.result-item` には `data-source`（`src/config.js` の `SOURCE_META` のキー）が付くので、
+
+```css
+/* public/styles/providers/claude.css */
+.conversation[data-source="claude"] {
+  --user-bubble-bg: #f0eee6;
+  --chat-link-color: #d97757;
+}
+```
+
+のように書く。使える変数は `public/styles/chat.css` の `.conversation` にまとめてある
+（吹き出しの角丸・余白・配色、本文の幅・行送り、コードブロック、折りたたみブロックなど）。
+変数で足りなければ同じセレクタ配下に通常の規則を書けばよい。プロバイダー側のセレクタは
+必ずベースより詳細度が高いので、読み込み順を気にする必要はない。
+
+新しいソースを足すときは `public/styles/providers/unknown.css` をひな形にコピーし、
+`public/index.html` に `<link>` を 1 行追加する。CSS を用意しなければ `chat.css` の既定の見た目になる。
 
 ### 索引の仕組み
 
