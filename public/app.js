@@ -341,6 +341,16 @@ function sourceMetaOf(id) {
   return state.allSources.find((s) => s.id === id) || { label: id, color: '#8a8f98' };
 }
 
+/** ロゴ画像を持つソース（画像は CSS 側で theme に応じて出し分け） */
+const LOGO_SOURCES = new Set(['chatgpt', 'claude', 'gemini', 'perplexity']);
+
+function sourceLogo(id, meta) {
+  const hasLogo = LOGO_SOURCES.has(id);
+  const style = hasLogo ? '' : ` style="background-color:${escapeHtml(meta.color)}"`;
+  return `<span class="ri-logo${hasLogo ? '' : ' is-dot'}" data-source="${escapeHtml(id)}"
+    role="img" title="${escapeHtml(meta.label)}" aria-label="${escapeHtml(meta.label)}"${style}></span>`;
+}
+
 function renderItems(items) {
   const frag = document.createDocumentFragment();
   for (const item of items) {
@@ -360,11 +370,11 @@ function renderItems(items) {
 
     li.innerHTML = `
       <div class="ri-head">
+        ${sourceLogo(item.source, meta)}
         <span class="ri-title">${highlightText(item.title, state.terms)}</span>
         ${item.favorite ? '<span class="ri-star" title="お気に入り">★</span>' : ''}
       </div>
       <div class="ri-meta">
-        <span class="badge" style="color:${escapeHtml(meta.color)}">${escapeHtml(meta.label)}</span>
         <span>${fmtDate(item.chatTime)}</span>
         <span>${fmtInt(item.turnCount)} 発言</span>
       </div>

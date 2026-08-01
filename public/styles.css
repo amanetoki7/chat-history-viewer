@@ -218,9 +218,21 @@ html[data-theme="dark"] .date-row input::-webkit-calendar-picker-indicator { fil
 .result-item.cursor { box-shadow: inset 2px 0 0 var(--accent); }
 
 .ri-head { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+.ri-logo {
+  flex: 0 0 auto; width: 16px; height: 16px;
+  background-repeat: no-repeat; background-position: center; background-size: contain;
+}
+.ri-logo.is-dot { width: 8px; height: 8px; margin: 0 3.5px; border-radius: 50%; }
+.ri-logo[data-source="chatgpt"] { background-image: url("images/OpenAI-black-monoblossom.svg");   background-size: 150%;}
+html[data-theme="dark"] .ri-logo[data-source="chatgpt"] { background-image: url("images/OpenAI-white-monoblossom.svg"); }
+.ri-logo[data-source="claude"] { background-image: url("images/Claude_AI_symbol.svg"); }
+.ri-logo[data-source="gemini"] { background-image: url("images/Google_Gemini_icon_2025.svg"); }
+.ri-logo[data-source="perplexity"] { background-image: url("images/perplexity-color.svg"); }
 .ri-title {
   flex: 1 1 auto; min-width: 0;
-  font-weight: 600; font-size: 13.5px;
+  /* font-weight: 600; */
+  font-size: 14px;
+  color: #0d0d0d;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ri-star { color: #f5b301; font-size: 11px; }
