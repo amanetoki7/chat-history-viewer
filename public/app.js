@@ -203,6 +203,8 @@ const el = {
   list: $('#result-list'), count: $('#result-count'), took: $('#result-took'), more: $('#result-more'),
   reader: $('#reader'), conversation: $('#conversation'), readerEmpty: $('#reader-empty'),
   hint: $('#search-hint'),
+  btnSearch: $('#btn-search'), modal: $('#search-modal'),
+  searchList: $('#search-list'), searchLabel: $('#search-label'),
 };
 
 /* ----------------------------------------------------------------- boot */
@@ -335,6 +337,7 @@ async function fetchPage(reset) {
       ? '一致する会話はありません'
       : '会話がありません';
     el.took.textContent = `${data.took} ms`;
+    if (isSearchOpen()) renderSearchList();
     ok = true;
   } catch (err) {
     el.count.textContent = '読み込みに失敗しました';
@@ -427,6 +430,113 @@ el.list.addEventListener('click', (ev) => {
 el.list.addEventListener('scroll', () => {
   if (state.loading || state.offset >= state.total) return;
   if (el.list.scrollTop + el.list.clientHeight > el.list.scrollHeight - SCROLL_MARGIN) fetchPage(false);
+});
+
+/* ---------------------------------------------------------- search popup */
+
+/** ポップアップに出す候補の最大件数（続きは背後の一覧で見る） */
+const SEARCH_LIST_MAX = 12;
+
+/** ポップアップ内のキーボード選択位置（-1 は未選択） */
+let searchCursor = -1;
+
+const isSearchOpen = () => !el.modal.hidden;
+
+/** 検索語の有無を虫めがねに反映する（入力欄が畳まれていて見えないため） */
+function updateSearchButton() {
+  el.btnSearch.classList.toggle('has-q', Boolean(state.q));
+  el.btnSearch.title = state.q ? `検索: ${state.q}` : '検索（/）';
+}
+
+function renderSearchList() {
+  const items = state.items.slice(0, SEARCH_LIST_MAX);
+  el.searchLabel.textContent = state.q
+    ? state.total
+      ? `検索結果  ${fmtInt(state.total)} 件`
+      : ''
+    : '最近のチャット';
+
+  if (!items.length) {
+    el.searchList.innerHTML =
+      `<li class="search-empty">${state.q ? '一致する会話はありません' : '会話がありません'}</li>`;
+    searchCursor = -1;
+    return;
+  }
+
+  el.searchList.innerHTML = items
+    .map((item) => {
+      const meta = sourceMetaOf(item.source);
+      return `<li data-id="${escapeHtml(item.relPath)}" data-source="${escapeHtml(item.source)}">
+        ${sourceLogo(item.source, meta, false)}
+        <span class="sr-title">${highlightText(item.title, state.terms)}</span>
+        <span class="sr-date">${fmtDate(item.chatTime)}</span>
+      </li>`;
+    })
+    .join('');
+
+  searchCursor = -1;
+}
+
+function moveSearchCursor(delta) {
+  const items = [...el.searchList.querySelectorAll('li[data-id]')];
+  if (!items.length) return;
+  items.forEach((li) => li.classList.remove('cursor'));
+  // -1（入力欄のみ）〜 items.length-1 を巡回させる
+  const slots = items.length + 1;
+  searchCursor = ((searchCursor + 1 + delta) % slots + slots) % slots - 1;
+  if (searchCursor < 0) return; // 一周したら入力欄だけに戻す
+  const li = items[searchCursor];
+  li.classList.add('cursor');
+  li.scrollIntoView({ block: 'nearest' });
+}
+
+function openSearch() {
+  if (isSearchOpen()) {
+    el.q.select();
+    return;
+  }
+  el.modal.hidden = false;
+  el.btnSearch.setAttribute('aria-expanded', 'true');
+  renderSearchList();
+  el.q.focus();
+  el.q.select();
+}
+
+function closeSearch() {
+  if (!isSearchOpen()) return;
+  el.modal.hidden = true;
+  el.btnSearch.setAttribute('aria-expanded', 'false');
+  searchCursor = -1;
+  el.q.blur();
+}
+
+el.btnSearch.addEventListener('click', openSearch);
+$('#search-close').addEventListener('click', closeSearch);
+$('#search-backdrop').addEventListener('click', closeSearch);
+
+el.searchList.addEventListener('click', (ev) => {
+  const li = ev.target.closest('li[data-id]');
+  if (!li) return;
+  closeSearch();
+  state.cursor = state.items.findIndex((it) => it.relPath === li.dataset.id);
+  openConversation(li.dataset.id, null);
+});
+
+el.q.addEventListener('keydown', (ev) => {
+  if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+    ev.preventDefault();
+    moveSearchCursor(ev.key === 'ArrowDown' ? 1 : -1);
+    return;
+  }
+  if (ev.key === 'Enter') {
+    ev.preventDefault();
+    const li = el.searchList.querySelector('li.cursor');
+    closeSearch();
+    if (li) {
+      state.cursor = state.items.findIndex((it) => it.relPath === li.dataset.id);
+      openConversation(li.dataset.id, null);
+    }
+  }
 });
 
 /* ---------------------------------------------------------------- reader */
@@ -594,6 +704,7 @@ function closeReader() {
 el.q.addEventListener('input', debounce(() => {
   state.q = el.q.value.trim();
   el.hint.textContent = state.q ? '' : '';
+  updateSearchButton();
   reload();
 }, 220));
 
@@ -627,20 +738,21 @@ $('#btn-reset').addEventListener('click', () => {
   el.favorite.checked = false; el.archived.checked = true;
   el.scope.value = 'all'; el.sort.value = 'relevance';
   el.sources.querySelectorAll('input').forEach((i) => (i.checked = false));
+  updateSearchButton();
   reload();
 });
 
 document.addEventListener('keydown', (ev) => {
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName);
 
-  if (ev.key === '/' && !typing) {
+  if ((ev.key === '/' && !typing) || ((ev.ctrlKey || ev.metaKey) && ev.key === 'k')) {
     ev.preventDefault();
-    el.q.focus();
-    el.q.select();
+    openSearch();
     return;
   }
   if (ev.key === 'Escape') {
-    if (typing) el.q.blur();
+    if (isSearchOpen()) closeSearch();
+    else if (typing) ev.target.blur();
     else closeReader();
     return;
   }
@@ -669,6 +781,7 @@ document.addEventListener('keydown', (ev) => {
 const initial = readHash();
 state.q = initial.q;
 el.q.value = initial.q;
+updateSearchButton();
 
 loadStats()
   .then(reload)

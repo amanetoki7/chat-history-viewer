@@ -24,13 +24,8 @@
   <button class="icon-btn only-narrow" id="btn-menu" title="フィルタ" aria-label="フィルタ">☰</button>
   <div class="brand"><span class="brand-mark">💬</span><span class="brand-text">AI Chat History</span></div>
 
-  <div class="searchbar">
-    <span class="search-icon" aria-hidden="true">🔍</span>
-    <input id="q" type="search" placeholder="全会話を検索  （&quot;完全一致&quot; / -除外 が使えます）" autocomplete="off" spellcheck="false">
-    <span class="search-hint" id="search-hint"></span>
-  </div>
-
   <div class="topbar-actions">
+    <button class="icon-btn" id="btn-search" title="検索（/）" aria-label="検索" aria-haspopup="dialog">🔍</button>
     <select id="scope" title="検索対象" aria-label="検索対象">
       <option value="all">全文</option>
       <option value="user">自分の発言</option>
@@ -101,6 +96,23 @@
 </div>
 
 <div class="scrim" id="scrim"></div>
+
+<!-- 検索はポップアップ。トップバーには虫めがねだけを置き、ここに本体を持つ -->
+<div class="search-modal" id="search-modal" hidden>
+  <div class="search-backdrop" id="search-backdrop"></div>
+  <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全会話を検索">
+    <div class="search-field">
+      <span class="search-icon" aria-hidden="true">🔍</span>
+      <input id="q" type="search" placeholder="全会話を検索  （&quot;完全一致&quot; / -除外 が使えます）" autocomplete="off" spellcheck="false">
+      <span class="search-hint" id="search-hint"></span>
+      <button class="icon-btn search-close" id="search-close" title="閉じる（Esc）" aria-label="閉じる">✕</button>
+    </div>
+    <div class="search-body">
+      <div class="search-label" id="search-label"></div>
+      <ul class="search-list" id="search-list"></ul>
+    </div>
+  </div>
+</div>
 
 <script src="/vendor/markdown-it/markdown-it.min.js"></script>
 <script src="/vendor/hljs/highlight.min.js"></script>
