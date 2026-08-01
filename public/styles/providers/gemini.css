@@ -29,9 +29,14 @@
 }
 
 html[data-theme="light"] .conversation[data-source="gemini"] {
-  --chat-bg: #ffffff;
+  --chat-bg: #fdfcfc;
   --code-bg: #f0f4f9;
   --block-bg: #f0f4f9;
-  --user-bubble-bg: #e9eef6;
+  --user-bubble-bg: #f2f0f0;
   --chat-link-color: #1a73e8;
+}
+
+.md pre, .md pre > code {
+  background: #141414 !important;
+  color: #fff !important;
 }
