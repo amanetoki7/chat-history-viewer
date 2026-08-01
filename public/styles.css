@@ -23,7 +23,7 @@
 }
 
 html[data-theme="light"] {
-  --bg: #f4f5f7;
+  --bg: #fcfcfc;
   --bg-elev: #ffffff;
   --bg-elev-2: #f7f8fa;
   --bg-hover: #eceef2;
@@ -36,8 +36,8 @@ html[data-theme="light"] {
   --accent-soft: #2563eb1a;
   --mark-bg: #ffe066;
   --mark-text: #4a3a00;
-  --user-bg: #e3edfb;
-  --user-border: #c6dbf5;
+  --user-bg: #f3f3f3;
+  --user-border: #f3f3f3;
   --shadow: 0 8px 28px rgba(20, 30, 50, .12);
 }
 
@@ -400,4 +400,9 @@ details.artifact > summary { color: #d97757; }
   body.reading .results { display: none; }
   body:not(.reading) .reader { display: none; }
   .brand-text { display: none; }
+}
+
+.assistant > .bubble {
+  background-color: transparent !important;
+  border: none !important;
 }
