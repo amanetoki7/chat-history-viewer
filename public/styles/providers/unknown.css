@@ -1,0 +1,26 @@
+/*
+ * その他（ソースを判別できなかった会話）＝ プロバイダー CSS のひな形
+ *
+ * 新しいプロバイダーを足すときは
+ *   1. このファイルをコピーして styles/providers/<source>.css を作る
+ *      （<source> は src/config.js の SOURCE_META のキー）
+ *   2. セレクタの data-source を書き換える
+ *   3. public/index.html に <link> を 1 行足す
+ * だけでよい。CSS を用意しなければ styles/chat.css の既定の見た目になる。
+ *
+ * 使える変数は styles/chat.css の .conversation を参照。
+ * 変数で足りない場合は、下のように普通の規則も書ける（プロバイダー側が必ず勝つ）。
+ */
+
+.conversation[data-source="unknown"] {
+  --user-bubble-max-width: 74%;
+}
+
+/* 例1: 本文の一部だけ差し替える
+.conversation[data-source="unknown"] .md pre { border-style: dashed; }
+*/
+
+/* 例2: 一覧（検索結果）の行にも同じ data-source が付いている
+.result-item[data-source="unknown"] .ri-title { font-style: italic; }
+.result-item[data-source="unknown"] .ri-meta { display: flex; }
+*/

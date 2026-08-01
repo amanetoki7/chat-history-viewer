@@ -1,0 +1,30 @@
+/*
+ * Gemini
+ *
+ * 対象: .conversation[data-source="gemini"]（リーダー）
+ *       .result-item[data-source="gemini"]（一覧の行）
+ * 変数の一覧は styles/chat.css を参照。
+ *
+ * 大きめの丸みと青系のアクセント。
+ */
+
+.conversation[data-source="gemini"] {
+  --chat-max-width: 840px;
+
+  --bubble-radius: 20px;
+  --bubble-tail-radius: 20px;
+  --bubble-padding: 12px 20px;
+
+  --user-bubble-bg: #333537;
+  --user-bubble-border: transparent;
+  --user-bubble-max-width: 74%;
+
+  --chat-link-color: #8ab4f8;
+  --code-radius: 12px;
+  --block-radius: 12px;
+}
+
+html[data-theme="light"] .conversation[data-source="gemini"] {
+  --user-bubble-bg: #f0f4f9;
+  --chat-link-color: #1a73e8;
+}

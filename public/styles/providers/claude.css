@@ -1,0 +1,40 @@
+/*
+ * Claude
+ *
+ * 対象: .conversation[data-source="claude"]（リーダー）
+ *       .result-item[data-source="claude"]（一覧の行）
+ * 変数の一覧は styles/chat.css を参照。
+ *
+ * 温かみのある配色と、やや広い行送り。artifact / 思考プロセスの折りたたみが主役。
+ */
+
+.conversation[data-source="claude"] {
+  --chat-max-width: 860px;
+  --chat-line-height: 1.75;
+
+  --bubble-radius: 14px;
+  --bubble-tail-radius: 14px;
+  --bubble-padding: 11px 17px;
+
+  --user-bubble-bg: #30302e;
+  --user-bubble-border: #3c3a36;
+  --user-bubble-max-width: 72%;
+
+  --chat-link-color: #d97757;
+  --chat-quote-border: #d9775766;
+
+  --block-radius: 10px;
+  --artifact-color: #d97757;
+  --thinking-color: #b48ef0;
+}
+
+html[data-theme="light"] .conversation[data-source="claude"] {
+  --user-bubble-bg: #f0eee6;
+  --user-bubble-border: #e5e1d6;
+  --block-bg: #faf9f5;
+}
+
+/* artifact は本文と切り離して見えるよう、少し強めの枠にする */
+.conversation[data-source="claude"] details.artifact {
+  border-color: color-mix(in srgb, var(--artifact-color) 45%, transparent);
+}

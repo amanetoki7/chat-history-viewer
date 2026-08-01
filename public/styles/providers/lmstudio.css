@@ -1,0 +1,39 @@
+/*
+ * LM Studio（ローカル LLM）
+ *
+ * 対象: .conversation[data-source="lmstudio"]（リーダー）
+ *       .result-item[data-source="lmstudio"]（一覧の行）
+ * 変数の一覧は styles/chat.css を参照。
+ *
+ * コードのやり取りが多いので、等幅の見出しと角の少ない箱で開発者ツール寄りに。
+ */
+
+.conversation[data-source="lmstudio"] {
+  --chat-max-width: 900px;
+
+  --bubble-radius: 8px;
+  --bubble-tail-radius: 8px;
+
+  --user-bubble-bg: #2a2338;
+  --user-bubble-border: #3d3352;
+  --user-bubble-max-width: 76%;
+
+  --chat-link-color: #a78bfa;
+  --chat-heading-font: var(--mono);
+  --chat-heading-weight: 600;
+
+  --code-radius: 6px;
+  --code-border: #8b5cf655;
+  --block-radius: 6px;
+  --block-summary-color: #a78bfa;
+}
+
+html[data-theme="light"] .conversation[data-source="lmstudio"] {
+  --user-bubble-bg: #f1edfb;
+  --user-bubble-border: #e0d7f5;
+  --chat-link-color: #7c3aed;
+  --block-summary-color: #7c3aed;
+}
+
+/* モデル名・時刻の行を等幅にして揃える */
+.conversation[data-source="lmstudio"] .turn-head { font-family: var(--mono); font-size: 10.5px; }

@@ -1,0 +1,46 @@
+/*
+ * Google AI モード
+ *
+ * 対象: .conversation[data-source="google_ai_mode"]（リーダー）
+ *       .result-item[data-source="google_ai_mode"]（一覧の行）
+ * 変数の一覧は styles/chat.css を参照。
+ *
+ * 検索結果ページに近い、吹き出しを使わないフラットな見た目。
+ * 質問は見出しのように大きく、回答は幅いっぱいの地の文。
+ */
+
+.conversation[data-source="google_ai_mode"] {
+  --chat-max-width: 760px;
+  --chat-line-height: 1.75;
+  --turn-gap: 26px;
+
+  --bubble-radius: 0;
+  --bubble-tail-radius: 0;
+  --bubble-padding: 0;
+
+  --user-align: stretch;
+  --user-bubble-bg: transparent;
+  --user-bubble-border: transparent;
+  --user-bubble-max-width: 100%;
+
+  --chat-link-color: #8ab4f8;
+  --code-radius: 8px;
+}
+
+html[data-theme="light"] .conversation[data-source="google_ai_mode"] {
+  --chat-link-color: #1a73e8;
+}
+
+/* 質問は検索クエリの見出しとして扱う */
+.conversation[data-source="google_ai_mode"] .turn.user .turn-head { flex-direction: row; }
+.conversation[data-source="google_ai_mode"] .turn.user .bubble {
+  font-size: 1.4em;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+/* 回答は区切りのない本文。アクションだけ少し離す */
+.conversation[data-source="google_ai_mode"] .turn.assistant .turn-actions { margin-top: 10px; }

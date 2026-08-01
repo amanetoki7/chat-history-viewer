@@ -1,0 +1,49 @@
+/*
+ * Perplexity
+ *
+ * 対象: .conversation[data-source="perplexity"]（リーダー）
+ *       .result-item[data-source="perplexity"]（一覧の行）
+ * 変数の一覧は styles/chat.css を参照。
+ *
+ * 質問を大きな見出し、回答を記事として読ませる構成。出典ブロックが目立つようにする。
+ */
+
+.conversation[data-source="perplexity"] {
+  --chat-max-width: 780px;
+  --chat-line-height: 1.8;
+  --turn-gap: 30px;
+
+  --bubble-radius: 0;
+  --bubble-tail-radius: 0;
+  --bubble-padding: 0;
+
+  --user-align: stretch;
+  --user-bubble-bg: transparent;
+  --user-bubble-border: transparent;
+  --user-bubble-max-width: 100%;
+
+  --chat-link-color: #20808d;
+  --chat-quote-border: #20808d66;
+
+  --block-radius: 10px;
+  --block-summary-color: #20808d;
+}
+
+html[data-theme="dark"] .conversation[data-source="perplexity"] {
+  --chat-link-color: #4bb8c4;
+  --block-summary-color: #4bb8c4;
+}
+
+/* 質問＝記事のタイトル */
+.conversation[data-source="perplexity"] .turn.user .turn-head { flex-direction: row; }
+.conversation[data-source="perplexity"] .turn.user .bubble {
+  font-size: 1.5em;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* 出典・関連する質問は本文から浮かせる */
+.conversation[data-source="perplexity"] details.block {
+  border-color: color-mix(in srgb, var(--block-summary-color) 40%, transparent);
+}

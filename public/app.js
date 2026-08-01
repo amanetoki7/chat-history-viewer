@@ -371,6 +371,7 @@ function renderItems(items) {
     const li = document.createElement('li');
     li.className = 'result-item' + (item.relPath === state.activeId ? ' active' : '');
     li.dataset.id = item.relPath;
+    li.dataset.source = item.source; // styles/providers/*.css から行の見た目を差し替えられる
 
     const snippets = (item.snippets || [])
       .map(
@@ -467,6 +468,9 @@ async function openConversation(relPath, focusTurn) {
         </div>`;
     })
     .join('');
+
+  // プロバイダーごとの描画スタイル（styles/providers/*.css）の切り替えスイッチ
+  el.conversation.dataset.source = conv.source || 'unknown';
 
   el.conversation.innerHTML = `
     <div class="conv-head">

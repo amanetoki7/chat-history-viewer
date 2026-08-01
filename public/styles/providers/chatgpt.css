@@ -1,0 +1,28 @@
+/*
+ * ChatGPT
+ *
+ * 対象: .conversation[data-source="chatgpt"]（リーダー）
+ *       .result-item[data-source="chatgpt"]（一覧の行）
+ * 変数の一覧は styles/chat.css を参照。
+ *
+ * 本家に寄せて、自分の発言だけ角丸のグレーの吹き出し、AI の回答は地の文。
+ */
+
+.conversation[data-source="chatgpt"] {
+  --chat-max-width: 820px;
+
+  --bubble-radius: 18px;
+  --bubble-tail-radius: 18px;         /* 尻尾は作らず全周同じ丸み */
+  --bubble-padding: 10px 18px;
+
+  --user-bubble-bg: #303030;
+  --user-bubble-border: transparent;
+  --user-bubble-max-width: 70%;
+
+  --chat-link-color: #10a37f;
+  --code-radius: 12px;
+}
+
+html[data-theme="light"] .conversation[data-source="chatgpt"] {
+  --user-bubble-bg: #ececec;
+}

@@ -1,0 +1,185 @@
+/*
+ * チャット本文の描画（共通ベース）。
+ *
+ * リーダーの `<article class="conversation" data-source="…">` 配下だけに効く。
+ * プロバイダー個別の見た目は styles/providers/<source>.css で
+ *
+ *   .conversation[data-source="claude"] { --user-bubble-bg: …; }
+ *
+ * のように、下の変数を上書きして作る（足りなければ通常の規則も書ける）。
+ * data-source の値は src/config.js の SOURCE_META のキーと同じ。
+ */
+
+.conversation {
+  /* レイアウト */
+  --chat-max-width: 1000px;
+  --chat-padding: 22px 28px 120px;
+  --chat-font: var(--sans);
+  --chat-font-size: 14px;
+  --chat-line-height: 1.7;
+  --turn-gap: 22px;
+
+  /* 吹き出し */
+  --bubble-radius: 12px;
+  --bubble-tail-radius: 3px;          /* 話者側の角だけ小さくして尻尾に見せる */
+  --bubble-padding: 12px 16px;
+
+  --user-align: flex-end;
+  --user-bubble-bg: var(--user-bg);
+  --user-bubble-border: var(--user-border);
+  --user-bubble-max-width: 78%;
+
+  --assistant-align: stretch;
+  --assistant-bubble-bg: transparent;
+  --assistant-bubble-border: transparent;
+  --assistant-bubble-max-width: 100%;
+
+  /* 本文 */
+  --chat-link-color: var(--accent);
+  --chat-heading-font: inherit;
+  --chat-heading-weight: 650;
+  --chat-quote-color: var(--text-dim);
+  --chat-quote-border: var(--border);
+
+  /* コード */
+  --code-font: var(--mono);
+  --code-bg: var(--bg-elev-2);
+  --code-border: var(--border);
+  --code-radius: 9px;
+
+  /* 折りたたみブロック（思考プロセス / Artifact / 出典など） */
+  --block-bg: var(--bg-elev-2);
+  --block-border: var(--border);
+  --block-radius: 9px;
+  --block-summary-color: var(--text-dim);
+  --thinking-color: #b48ef0;
+  --artifact-color: #d97757;
+}
+
+/* ------------------------------------------------------------------ 発言 */
+
+.turns {
+  padding: var(--chat-padding);
+  max-width: var(--chat-max-width);
+  font-family: var(--chat-font);
+  font-size: var(--chat-font-size);
+  line-height: var(--chat-line-height);
+}
+
+.turn {
+  display: flex; flex-direction: column;
+  align-items: var(--assistant-align);
+  margin-bottom: var(--turn-gap);
+}
+.turn-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--text-faint);
+  margin-bottom: 5px; font-variant-numeric: tabular-nums;
+}
+.turn-who { font-weight: 650; color: var(--text-dim); }
+
+/* 吹き出し下のアクション（コピー / 共有 / 編集） */
+.turn-actions { display: flex; gap: 2px; margin-top: 6px; opacity: 0; transition: opacity .12s; }
+.turn:hover .turn-actions, .turn:focus-within .turn-actions { opacity: 1; }
+.turn-actions .act {
+  display: grid; place-items: center;
+  width: 30px; height: 30px; padding: 0;
+  background: transparent; border: 0; border-radius: 8px;
+  color: var(--text-faint); cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.turn-actions .act:hover { background: var(--bg-hover); color: var(--text); }
+.turn-actions .act.done { color: var(--chat-link-color); }
+@media (hover: none) { .turn-actions { opacity: 1; } }
+
+.bubble {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--bubble-radius);
+  padding: var(--bubble-padding);
+  background: var(--bg-elev);
+  overflow-wrap: anywhere;
+}
+
+.turn.user { align-items: var(--user-align); }
+.turn.user .turn-head { flex-direction: row-reverse; }
+.turn.user .bubble {
+  max-width: var(--user-bubble-max-width);
+  background: var(--user-bubble-bg);
+  border-color: var(--user-bubble-border);
+  border-bottom-right-radius: var(--bubble-tail-radius);
+}
+
+.turn.assistant .bubble {
+  max-width: var(--assistant-bubble-max-width);
+  background: var(--assistant-bubble-bg);
+  border-color: var(--assistant-bubble-border);
+  border-bottom-left-radius: var(--bubble-tail-radius);
+}
+
+.turn.note .bubble { background: transparent; border-style: dashed; color: var(--text-dim); }
+
+.turn-hit { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--bubble-radius); }
+
+/* -------------------------------------------------------------- markdown */
+
+.md > *:first-child { margin-top: 0; }
+.md > *:last-child { margin-bottom: 0; }
+.md h1, .md h2, .md h3, .md h4 {
+  line-height: 1.4; margin: 1.4em 0 .6em;
+  font-family: var(--chat-heading-font); font-weight: var(--chat-heading-weight);
+}
+.md h1 { font-size: 1.35em; } .md h2 { font-size: 1.2em; } .md h3 { font-size: 1.07em; } .md h4 { font-size: 1em; }
+.md p { margin: .7em 0; }
+.md ul, .md ol { margin: .7em 0; padding-left: 1.5em; }
+.md li { margin: .25em 0; }
+.md hr { border: none; border-top: 1px solid var(--border); margin: 1.4em 0; }
+.md blockquote {
+  margin: .8em 0; padding: .1em 0 .1em 14px;
+  border-left: 3px solid var(--chat-quote-border); color: var(--chat-quote-color);
+}
+.md a { color: var(--chat-link-color); }
+.md code {
+  font-family: var(--code-font); font-size: .89em;
+  background: var(--code-bg); border: 1px solid var(--border-soft);
+  border-radius: 5px; padding: .1em .38em;
+}
+.md pre {
+  margin: .9em 0; padding: 12px 14px;
+  background: var(--code-bg); border: 1px solid var(--code-border);
+  border-radius: var(--code-radius); overflow-x: auto;
+}
+.md pre code { background: none; border: none; padding: 0; font-size: 12.5px; line-height: 1.6; }
+.md table {
+  border-collapse: collapse; margin: .9em 0;
+  display: block; overflow-x: auto; max-width: 100%;
+}
+.md th, .md td { border: 1px solid var(--border); padding: 6px 11px; text-align: left; }
+.md th { background: var(--bg-elev-2); font-weight: 650; }
+.md img { max-width: 100%; height: auto; border-radius: 8px; }
+
+/* Claude の artifact / thinking、Perplexity の出典など */
+details.block {
+  margin: .9em 0;
+  border: 1px solid var(--block-border);
+  border-radius: var(--block-radius);
+  background: var(--block-bg);
+  overflow: hidden;
+}
+details.block > summary {
+  padding: 7px 13px; cursor: pointer; user-select: none;
+  font-size: 12px; color: var(--block-summary-color); font-weight: 600;
+  list-style: none;
+}
+details.block > summary::-webkit-details-marker { display: none; }
+details.block > summary::before { content: "▸ "; color: var(--text-faint); }
+details.block[open] > summary::before { content: "▾ "; }
+details.block > summary:hover { background: var(--bg-hover); }
+details.block .block-body { padding: 2px 14px 12px; border-top: 1px solid var(--border-soft); }
+details.thinking > summary { color: var(--thinking-color); }
+details.artifact > summary { color: var(--artifact-color); }
+
+/* -------------------------------------------------------------- narrow */
+
+@media (max-width: 1180px) {
+  .conversation { --chat-padding: 20px 20px 120px; }
+}
