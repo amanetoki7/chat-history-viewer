@@ -34,8 +34,10 @@ const attrOf = (attrs, name) => {
   return m ? m[1] : '';
 };
 
-const detailsBlock = (cls, summary, innerHtml, open) =>
-  `<details class="block ${cls}"${open ? ' open' : ''}><summary>${escapeHtml(summary)}</summary>` +
+/** 折りたたみブロック。見出しには Tabler アイコン（icons.js）を添える。 */
+const detailsBlock = (cls, iconName, label, innerHtml, open) =>
+  `<details class="block ${cls}"${open ? ' open' : ''}>` +
+  `<summary>${icon(iconName, 14)}<span>${escapeHtml(label)}</span></summary>` +
   `<div class="block-body md">${innerHtml}</div></details>`;
 
 /**
@@ -54,36 +56,20 @@ function renderRich(text) {
     last = m.index + m[0].length;
 
     if (m[3] !== undefined) {
-      html += detailsBlock('thinking', '💭 思考プロセス', md.render(m[3].trim()), false);
+      html += detailsBlock('thinking', 'bulb', '思考プロセス', md.render(m[3].trim()), false);
     } else {
       const attrs = m[1] || '';
       const title = attrOf(attrs, 'title') || attrOf(attrs, 'identifier') || 'Artifact';
       const type = attrOf(attrs, 'type');
       const lang = ARTIFACT_LANG[type] ?? '';
       const body = '```' + lang + '\n' + m[2].replace(/^\n+|\n+$/g, '') + '\n```';
-      html += detailsBlock('artifact', `📦 ${title}`, md.render(body), true);
+      html += detailsBlock('artifact', 'package', title, md.render(body), true);
     }
   }
   const rest = text.slice(last);
   if (rest.trim()) html += md.render(rest);
   return html;
 }
-
-/* ---------------------------------------------------------------- icons */
-
-/* Tabler Icons (outline) の path をそのまま埋め込む */
-const ICONS = {
-  copy:
-    '<path d="M7 7m0 2.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667z"/>' +
-    '<path d="M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1"/>',
-  share: '<path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M7 9l5 -5l5 5"/><path d="M12 4l0 12"/>',
-  pencil: '<path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"/><path d="M13.5 6.5l4 4"/>',
-  check: '<path d="M5 12l5 5l10 -10"/>',
-};
-
-const icon = (name) =>
-  `<svg class="ti" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
-  `stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
 
 /* ---------------------------------------------------------------- utils */
 
@@ -214,6 +200,7 @@ function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   $('#hljs-dark').disabled = theme !== 'dark';
   $('#hljs-light').disabled = theme === 'dark';
+  paintThemeIcon(theme);
 }
 
 // 明示的に選ばれていなければ OS の設定に従う
@@ -389,7 +376,7 @@ function renderItems(items) {
       <div class="ri-head">
         ${sourceLogo(item.source, meta)}
         <span class="ri-title">${highlightText(item.title, state.terms)}</span>
-        ${item.favorite ? '<span class="ri-star" title="お気に入り">★</span>' : ''}
+        ${item.favorite ? `<span class="ri-star" title="お気に入り">${icon('star-filled', 13)}</span>` : ''}
       </div>
       <div class="ri-meta">
         <span>${fmtDate(item.chatTime)}</span>
@@ -554,7 +541,10 @@ async function openConversation(relPath, focusTurn) {
   if (conv.error) return;
 
   const links = [];
-  if (conv.url) links.push(`<a href="${escapeHtml(conv.url)}" target="_blank" rel="noopener">元のチャットを開く ↗</a>`);
+  if (conv.url)
+    links.push(
+      `<a href="${escapeHtml(conv.url)}" target="_blank" rel="noopener">元のチャットを開く${icon('external-link', 13)}</a>`
+    );
   links.push(`<a href="obsidian://open?path=${encodeURIComponent(conv.absPath)}">Obsidian で開く</a>`);
   links.push(`<a href="/api/raw?id=${encodeURIComponent(relPath)}" target="_blank" rel="noopener">Markdown 原文</a>`);
 
@@ -562,8 +552,8 @@ async function openConversation(relPath, focusTurn) {
     .map((turn) => {
       const who = turn.role === 'user' ? '自分' : turn.role === 'note' ? 'メモ' : conv.sourceMeta.label;
       const extras =
-        (turn.sources ? detailsBlock('', `🔗 出典`, md.render(turn.sources), false) : '') +
-        (turn.related ? detailsBlock('', `❓ 関連する質問`, md.render(turn.related), false) : '');
+        (turn.sources ? detailsBlock('', 'link', '出典', md.render(turn.sources), false) : '') +
+        (turn.related ? detailsBlock('', 'help-circle', '関連する質問', md.render(turn.related), false) : '');
       return `<div class="turn ${turn.role}" data-turn="${turn.index}">
           <div class="turn-head">
             <span class="turn-who">${escapeHtml(who)}</span>
@@ -589,12 +579,12 @@ async function openConversation(relPath, focusTurn) {
         <span class="badge" style="color:${escapeHtml(conv.sourceMeta.color)}">${escapeHtml(conv.sourceMeta.label)}</span>
         <span>${fmtDate(conv.chatTime, true)}</span>
         <span>${fmtInt(conv.turns.length)} 発言 / ${fmtInt(conv.chars)} 文字</span>
-        ${conv.favorite ? '<span class="ri-star">★</span>' : ''}
+        ${conv.favorite ? `<span class="ri-star">${icon('star-filled', 13)}</span>` : ''}
         ${links.join('<span style="opacity:.4">·</span>')}
         <span class="hitnav" id="hitnav" hidden>
-          <button class="icon-btn" id="hit-prev" title="前の一致">↑</button>
+          <button class="icon-btn" id="hit-prev" title="前の一致" aria-label="前の一致">${icon('arrow-up', 14)}</button>
           <span id="hit-label"></span>
-          <button class="icon-btn" id="hit-next" title="次の一致">↓</button>
+          <button class="icon-btn" id="hit-next" title="次の一致" aria-label="次の一致">${icon('arrow-down', 14)}</button>
         </span>
       </div>
     </div>

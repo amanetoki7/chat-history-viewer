@@ -17,10 +17,12 @@ let busy = false;
 
 const savedTheme = localStorage.getItem('theme');
 if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+paintThemeIcon(document.documentElement.dataset.theme);
 document.getElementById('btn-theme').addEventListener('click', () => {
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
   localStorage.setItem('theme', next);
+  paintThemeIcon(next);
 });
 
 /* --------------------------------------------------------------- UI */
@@ -165,30 +167,18 @@ function fmtElapsed(ms) {
   return s >= 60 ? `${Math.floor(s / 60)}分${String(s % 60).padStart(2, '0')}秒` : `${s}秒`;
 }
 
-const RESEARCH_ICONS = {
-  clock:
-    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l2.8 1.8"/></svg>',
-  plan:
-    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>',
-  check:
-    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5"/></svg>',
-  pen:
-    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>',
-  spark:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2c.6 4.8 3.2 7.4 8 8-4.8.6-7.4 3.2-8 8-.6-4.8-3.2-7.4-8-8 4.8-.6 7.4-3.2 8-8Z"/></svg>',
-  search:
-    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5 16 16"/></svg>',
-  chev:
-    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
-};
+/** ステップ id → 工程アイコン（それ以外は時計）。名前は icons.js の Tabler 名。 */
+const RESEARCH_STEP_ICON = { plan: 'route', verify: 'circle-check', write: 'pencil' };
 
-/** ステップ id → 工程アイコン（それ以外は時計） */
-const RESEARCH_STEP_ICON = { plan: 'plan', verify: 'check', write: 'pen' };
-
-function researchIcon(name, className = 'icon') {
+function researchIcon(name, className = 'icon', size = 15) {
   const span = el('span', className);
-  span.innerHTML = RESEARCH_ICONS[name];
+  span.innerHTML = icon(name, size);
   return span;
+}
+
+/** サマリ行を「アイコン + 文言」に書き換える。 */
+function setSummary(sumText, iconName, text) {
+  sumText.replaceChildren(researchIcon(iconName, 'icon', 14), el('span', '', text));
 }
 
 /** 進捗カード（ステップと検索ワードの一覧・キャンセル）を作る。 */
@@ -200,8 +190,8 @@ function addResearchCard(jobId) {
   const head = el('div', 'research-head');
   const summary = el('button', 'research-summary');
   summary.type = 'button';
-  const sumText = el('span', '', '調査を開始しています');
-  summary.append(sumText, researchIcon('chev', 'chev'));
+  const sumText = el('span', 'sum', '調査を開始しています');
+  summary.append(sumText, researchIcon('chevron-down', 'chev', 13));
   summary.addEventListener('click', () => {
     state.collapsed = !state.collapsed;
     card.classList.toggle('collapsed', state.collapsed);
@@ -222,7 +212,7 @@ function addResearchCard(jobId) {
   const body = el('div', 'research-body');
   const thinking = el('div', 'research-thinking');
   const thinkingText = el('span', '', '思考中');
-  thinking.append(researchIcon('spark'), thinkingText);
+  thinking.append(researchIcon('sparkles', 'icon', 14), thinkingText);
   const stats = el('div', 'research-stats', '');
 
   card.append(head, bar, body, thinking, stats);
@@ -241,7 +231,7 @@ function renderResearchSteps(refs, snap) {
       const headBtn = el('button', 'research-step-head');
       headBtn.type = 'button';
       headBtn.append(researchIcon(RESEARCH_STEP_ICON[step.id] || 'clock'), el('span', 'label', step.label));
-      if (step.queries.length) headBtn.append(researchIcon('chev', 'chev'));
+      if (step.queries.length) headBtn.append(researchIcon('chevron-down', 'chev', 13));
       headBtn.addEventListener('click', () => {
         if (state.closedSteps.has(step.id)) state.closedSteps.delete(step.id);
         else state.closedSteps.add(step.id);
@@ -253,7 +243,7 @@ function renderResearchSteps(refs, snap) {
         const list = el('div', 'research-queries');
         for (const q of step.queries) {
           const row = el('div', 'research-query');
-          row.append(researchIcon('search'), el('span', '', q));
+          row.append(researchIcon('search', 'icon', 13), el('span', '', q));
           list.appendChild(row);
         }
         wrap.appendChild(list);
@@ -289,13 +279,16 @@ function finishResearchCard(refs, snap) {
 
   const done = (snap.steps || []).filter((s) => s.status === 'done').length;
   if (snap.status === 'completed') {
-    refs.sumText.textContent =
-      `✅ 調査完了・${done} ステップ` + (snap.truncated ? '（予算上限で打ち切り）' : '');
+    setSummary(
+      refs.sumText,
+      'circle-check',
+      `調査完了・${done} ステップ` + (snap.truncated ? '（予算上限で打ち切り）' : '')
+    );
     refs.stats.textContent = `検索 ${snap.stats.searches} 回 ・ 証拠 ${snap.stats.evidence} 件 ・ ${fmtElapsed(snap.elapsedMs)} で完了`;
   } else if (snap.status === 'cancelled') {
-    refs.sumText.textContent = `⏹ 調査をキャンセルしました（${done} ステップ完了）`;
+    setSummary(refs.sumText, 'player-stop', `調査をキャンセルしました（${done} ステップ完了）`);
   } else {
-    refs.sumText.textContent = '⚠ 調査に失敗しました';
+    setSummary(refs.sumText, 'alert-triangle', '調査に失敗しました');
   }
 }
 

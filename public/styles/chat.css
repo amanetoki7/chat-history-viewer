@@ -175,13 +175,23 @@ details.block {
   overflow: hidden;
 }
 details.block > summary {
+  display: flex; align-items: center; gap: 6px;
   padding: 7px 13px; cursor: pointer; user-select: none;
   font-size: 12px; color: var(--block-summary-color); font-weight: 600;
   list-style: none;
 }
 details.block > summary::-webkit-details-marker { display: none; }
-details.block > summary::before { content: "▸ "; color: var(--text-faint); }
-details.block[open] > summary::before { content: "▾ "; }
+/* 開閉マークは Tabler の chevron-right（マスクで色を継がせる） */
+details.block > summary::before {
+  content: ""; flex: none;
+  width: 13px; height: 13px;
+  background: var(--text-faint);
+  mask: var(--ti-chevron) center / contain no-repeat;
+  -webkit-mask: var(--ti-chevron) center / contain no-repeat;
+  transition: transform .15s;
+}
+details.block[open] > summary::before { transform: rotate(90deg); }
+details.block > summary .ti { flex: none; }
 details.block > summary:hover { background: var(--bg-hover); }
 details.block .block-body { padding: 2px 14px 12px; border-top: 1px solid var(--border-soft); }
 details.thinking > summary { color: var(--thinking-color); }

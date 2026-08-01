@@ -46,6 +46,15 @@ html[data-theme="light"] {
   --shadow: 0 8px 28px rgba(20, 30, 50, .12);
 }
 
+/* アイコンは Tabler Icons（outline）。実体は icons.js が流し込む */
+:root {
+  --ti-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6l-6 6'/%3E%3C/svg%3E");
+}
+
+/* data-icon を持つ要素はアイコンの器。中身の svg を中央に置くだけ */
+[data-icon] { display: inline-flex; align-items: center; justify-content: center; }
+.ti { display: block; flex: none; }
+
 * { box-sizing: border-box; }
 
 /* display を持つ規則が UA の [hidden] を上書きしてしまうため明示する */
@@ -81,7 +90,7 @@ body {
 }
 
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; white-space: nowrap; }
-.brand-mark { font-size: 18px; }
+.brand-mark { color: var(--accent); }
 .brand-text { letter-spacing: .01em; }
 
 .topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
@@ -127,7 +136,7 @@ body {
   padding: 10px 10px 10px 12px;
   border-bottom: 1px solid var(--border-soft);
 }
-.search-icon { font-size: 14px; opacity: .6; pointer-events: none; }
+.search-icon { color: var(--text-dim); pointer-events: none; }
 #q {
   flex: 1 1 auto;
   min-width: 0;
@@ -303,7 +312,7 @@ html[data-theme="dark"] .date-row input::-webkit-calendar-picker-indicator { fil
   color: #0d0d0d;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ri-star { color: #f5b301; font-size: 11px; }
+.ri-star { display: inline-flex; color: #f5b301; }
 .ri-meta {
   display: flex; align-items: center; gap: 8px;
   font-size: 11px; color: var(--text-faint);
@@ -365,7 +374,7 @@ mark { background: var(--mark-bg); color: var(--mark-text); border-radius: 2px; 
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 6px; color: var(--text-faint); text-align: center; padding: 20px;
 }
-.empty-mark { font-size: 44px; opacity: .35; }
+.empty-mark { opacity: .35; }
 .empty p { margin: 0; }
 .empty-keys { margin-top: 12px !important; font-size: 12px; }
 kbd {
@@ -384,7 +393,7 @@ kbd {
 }
 .conv-title { margin: 0 0 7px; font-size: 17px; font-weight: 650; line-height: 1.4; }
 .conv-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 11.5px; color: var(--text-faint); }
-.conv-meta a { color: var(--accent); text-decoration: none; }
+.conv-meta a { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); text-decoration: none; }
 .conv-meta a:hover { text-decoration: underline; }
 .hitnav { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .hitnav button { width: 26px; height: 24px; font-size: 12px; }

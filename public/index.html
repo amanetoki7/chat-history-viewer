@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Chat History Viewer</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236ea8fe' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10'/><path d='M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2'/></svg>">
 <link rel="stylesheet" href="/vendor/hljs/styles/github-dark.min.css" id="hljs-dark">
 <link rel="stylesheet" href="/vendor/hljs/styles/github.min.css" id="hljs-light" disabled>
 <link rel="stylesheet" href="/styles.css">
@@ -21,11 +21,11 @@
 <body>
 
 <header class="topbar">
-  <button class="icon-btn only-narrow" id="btn-menu" title="フィルタ" aria-label="フィルタ">☰</button>
-  <div class="brand"><span class="brand-mark">💬</span><span class="brand-text">AI Chat History</span></div>
+  <button class="icon-btn only-narrow" id="btn-menu" title="フィルタ" aria-label="フィルタ" data-icon="menu-2" data-size="18"></button>
+  <div class="brand"><span class="brand-mark" data-icon="messages" data-size="19"></span><span class="brand-text">AI Chat History</span></div>
 
   <div class="topbar-actions">
-    <button class="icon-btn" id="btn-search" title="検索（/）" aria-label="検索" aria-haspopup="dialog">🔍</button>
+    <button class="icon-btn" id="btn-search" title="検索（/）" aria-label="検索" aria-haspopup="dialog" data-icon="search" data-size="18"></button>
     <select id="scope" title="検索対象" aria-label="検索対象">
       <option value="all">全文</option>
       <option value="user">自分の発言</option>
@@ -37,8 +37,8 @@
       <option value="oldest">古い順</option>
       <option value="longest">長い順</option>
     </select>
-    <a class="icon-btn" href="/ask" title="履歴に質問（AI）" aria-label="履歴に質問" style="text-decoration:none">✨</a>
-    <button class="icon-btn" id="btn-theme" title="テーマ切替" aria-label="テーマ切替">◐</button>
+    <a class="icon-btn" href="/ask" title="履歴に質問（AI）" aria-label="履歴に質問" style="text-decoration:none" data-icon="sparkles" data-size="18"></a>
+    <button class="icon-btn" id="btn-theme" title="テーマ切替" aria-label="テーマ切替" data-icon="sun" data-size="18"></button>
   </div>
 </header>
 
@@ -86,7 +86,7 @@
 
   <main class="reader" id="reader">
     <div class="empty" id="reader-empty">
-      <div class="empty-mark">💬</div>
+      <div class="empty-mark" data-icon="messages" data-size="44"></div>
       <p>左の一覧から会話を選ぶと、ここにチャットが表示されます。</p>
       <p class="empty-keys"><kbd>/</kbd> 検索　<kbd>J</kbd>/<kbd>K</kbd> 一覧移動　<kbd>Esc</kbd> 閉じる</p>
     </div>
@@ -102,10 +102,10 @@
   <div class="search-backdrop" id="search-backdrop"></div>
   <div class="search-dialog" role="dialog" aria-modal="true" aria-label="全会話を検索">
     <div class="search-field">
-      <span class="search-icon" aria-hidden="true">🔍</span>
+      <span class="search-icon" aria-hidden="true" data-icon="search" data-size="16"></span>
       <input id="q" type="search" placeholder="全会話を検索  （&quot;完全一致&quot; / -除外 が使えます）" autocomplete="off" spellcheck="false">
       <span class="search-hint" id="search-hint"></span>
-      <button class="icon-btn search-close" id="search-close" title="閉じる（Esc）" aria-label="閉じる">✕</button>
+      <button class="icon-btn search-close" id="search-close" title="閉じる（Esc）" aria-label="閉じる" data-icon="x" data-size="17"></button>
     </div>
     <div class="search-body">
       <div class="search-label" id="search-label"></div>
@@ -116,6 +116,7 @@
 
 <script src="/vendor/markdown-it/markdown-it.min.js"></script>
 <script src="/vendor/hljs/highlight.min.js"></script>
+<script src="/icons.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

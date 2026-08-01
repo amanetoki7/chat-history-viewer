@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>履歴に質問 — AI Chat History Viewer</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✨</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236ea8fe' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6'/></svg>">
 <link rel="stylesheet" href="/styles.css">
 <style>
   .ask-layout { max-width: 860px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; height: calc(100dvh - 57px); }
@@ -28,7 +28,7 @@
   .ask-form button { background: var(--accent); color: #fff; border: 0; border-radius: var(--radius); padding: 0 18px; font: inherit; cursor: pointer; }
   .ask-form button:disabled { opacity: .5; cursor: default; }
   .ask-empty { color: var(--text-faint); text-align: center; margin: auto; }
-  .ask-empty .mark { font-size: 2.2rem; }
+  .ask-empty .mark { display: flex; justify-content: center; opacity: .45; }
   .ask-empty .hints { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
   .ask-empty .hint { cursor: pointer; color: var(--text-dim); background: var(--bg-elev); border: 1px solid var(--border-soft); border-radius: 999px; padding: 5px 14px; font-size: .85rem; }
   .ask-empty .hint:hover { color: var(--accent); border-color: var(--accent); }
@@ -45,6 +45,8 @@
   .research-head { display: flex; align-items: center; gap: 8px; }
   .research-summary { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 0; color: var(--text-dim); font: inherit; font-size: .85rem; cursor: pointer; }
   .research-summary:hover { color: var(--text); }
+  .research-summary .sum { display: inline-flex; align-items: center; gap: 6px; }
+  .research-summary .sum .icon { display: inline-flex; flex: none; }
   .research-summary .chev { display: inline-flex; transition: transform .2s; }
   .research-card.collapsed .research-summary .chev { transform: rotate(-90deg); }
   .research-cancel { margin-left: auto; background: none; border: 1px solid var(--border-soft); border-radius: 999px; color: var(--text-dim); font: inherit; font-size: .75rem; padding: 3px 10px; cursor: pointer; }
@@ -71,18 +73,18 @@
 <body>
 
 <header class="topbar">
-  <div class="brand"><a href="/" style="text-decoration:none"><span class="brand-mark">💬</span></a><span class="brand-text">履歴に質問</span></div>
+  <div class="brand"><a href="/" style="text-decoration:none"><span class="brand-mark" data-icon="messages" data-size="19"></span></a><span class="brand-text">履歴に質問</span></div>
   <div style="flex:1"></div>
   <div class="topbar-actions">
-    <a class="icon-btn" href="/" title="ビューアに戻る" aria-label="ビューアに戻る" style="text-decoration:none">🔍</a>
-    <button class="icon-btn" id="btn-theme" title="テーマ切替" aria-label="テーマ切替">◐</button>
+    <a class="icon-btn" href="/" title="ビューアに戻る" aria-label="ビューアに戻る" style="text-decoration:none" data-icon="search" data-size="18"></a>
+    <button class="icon-btn" id="btn-theme" title="テーマ切替" aria-label="テーマ切替" data-icon="sun" data-size="18"></button>
   </div>
 </header>
 
 <div class="ask-layout">
   <div class="ask-log" id="log">
     <div class="ask-empty" id="empty">
-      <div class="mark">✨</div>
+      <div class="mark" data-icon="sparkles" data-size="40"></div>
       <p>過去の AI チャット履歴すべてを根拠に、自然な言葉で質問できます。</p>
       <div class="hints">
         <button class="hint">最近ハマっていることは？</button>
@@ -93,7 +95,7 @@
   </div>
   <div class="ask-form-wrap">
     <label class="deep-toggle" title="質問をサブ質問に分解し、検索と検証を繰り返す調査モード（数分〜十数分かかります）">
-      <input type="checkbox" id="deep-mode"> 🔬 詳しく調査
+      <input type="checkbox" id="deep-mode"><span data-icon="microscope" data-size="15"></span> 詳しく調査
     </label>
     <form class="ask-form" id="form">
       <textarea id="input" rows="1" placeholder="履歴について質問…  (Enter で送信 / Shift+Enter で改行)"></textarea>
@@ -103,6 +105,7 @@
 </div>
 
 <script src="/vendor/markdown-it/markdown-it.min.js"></script>
+<script src="/icons.js"></script>
 <script src="/ask.js"></script>
 </body>
 </html>
