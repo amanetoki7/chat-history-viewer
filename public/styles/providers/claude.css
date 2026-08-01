@@ -25,7 +25,7 @@
   --user-bubble-max-width: 72%;
 
   --chat-link-color: #d97757;
-  --chat-quote-border: #d9775766;
+  --chat-quote-border: #e5e5e4;
 
   --block-radius: 10px;
   --artifact-color: #d97757;
@@ -34,13 +34,33 @@
 
 html[data-theme="light"] .conversation[data-source="claude"] {
   --chat-bg: #fcfcfb;
-  --code-bg: #f0eee6;
+  --code-bg: #f2f2f1;
   --block-bg: #f5f4ed;
-  --user-bubble-bg: #f0eee6;
+  --user-bubble-bg: #f0efec;
   --user-bubble-border: #e5e1d6;
 }
 
 /* artifact は本文と切り離して見えるよう、少し強めの枠にする */
 .conversation[data-source="claude"] details.artifact {
   border-color: color-mix(in srgb, var(--artifact-color) 45%, transparent);
+}
+.md code {
+  font-family: var(--code-font); font-size: .89em;
+  background: var(--code-bg); border: 1px solid var(--border-soft);
+  border-radius: 5px; padding: .1em .38em;
+  color: #8e2626;
+}
+
+.md pre, .md pre > code {
+  font-family: var(--code-font); font-size: .89em;
+  background: #fefdfd !important;
+  border: none;
+  border-radius: 5px;
+  padding: 0;
+  color: #000;
+}
+.md pre {
+  border: 1px solid var(--border-soft) !important;
+  border-radius: 5px;
+  padding: .5em .7em;
 }
