@@ -207,7 +207,7 @@ html[data-theme="dark"] .date-row input::-webkit-calendar-picker-indicator { fil
 .result-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1 1 auto; }
 
 .result-item {
-  padding: 10px 12px;
+  padding: 4px 6px;
   border-radius: var(--radius);
   border: 1px solid transparent;
   cursor: pointer;
@@ -265,8 +265,25 @@ html[data-theme="dark"] .ri-logo[data-source="chatgpt"] { background-image: url(
 
 mark { background: var(--mark-bg); color: var(--mark-text); border-radius: 2px; padding: 0 1px; }
 
-.result-more { flex: 0 0 auto; padding: 10px 16px 18px; text-align: center; font-size: 12px; color: var(--text-faint); }
-.result-more button { padding: 7px 18px; }
+.result-more {
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 34px; padding: 8px 16px 12px;
+  font-size: 12px; color: var(--text-faint);
+}
+.result-more:empty { display: none; }
+
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2s; }
+}
 
 /* ---------------------------------------------------------------- reader */
 
@@ -441,4 +458,8 @@ details.artifact > summary { color: #d97757; }
 
 .result-item.active {
   border: none !important;
+}
+
+.ri-meta {
+  display: none !important; /*コンパクト表示のため非表示*/
 }

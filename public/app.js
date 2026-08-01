@@ -189,8 +189,12 @@ const state = {
   cursor: -1,
   activeId: null,
   loading: false,
+  loadingMore: false,
   seq: 0,
 };
+
+/** 一覧の下端からこの距離まで来たら次ページを読む（px） */
+const SCROLL_MARGIN = 400;
 
 const el = {
   q: $('#q'), scope: $('#scope'), sort: $('#sort'),
@@ -303,13 +307,16 @@ async function reload() {
 async function fetchPage(reset) {
   if (state.loading) return;
   state.loading = true;
+  state.loadingMore = !reset;
   const seq = ++state.seq;
 
   if (reset) {
     el.count.textContent = '検索中…';
     el.took.textContent = '';
   }
+  renderMore();
 
+  let ok = false;
   try {
     const data = await fetch('/api/conversations?' + buildQuery(reset ? 0 : state.offset)).then((r) => r.json());
     if (seq !== state.seq) return;
@@ -328,12 +335,15 @@ async function fetchPage(reset) {
       ? '一致する会話はありません'
       : '会話がありません';
     el.took.textContent = `${data.took} ms`;
-    renderMore();
+    ok = true;
   } catch (err) {
     el.count.textContent = '読み込みに失敗しました';
     console.error(err);
   } finally {
     state.loading = false;
+    state.loadingMore = false;
+    renderMore();
+    if (ok) autoLoadIfShort(); // 失敗時は無限リトライにならないよう見送る
   }
 }
 
@@ -385,13 +395,21 @@ function renderItems(items) {
   el.list.appendChild(frag);
 }
 
+/** 一覧下の状態表示。追加読み込み中はスピナー、それ以外は残件数を出す。 */
 function renderMore() {
-  if (state.offset < state.total) {
-    el.more.innerHTML = `<button id="btn-more">さらに読み込む（残り ${fmtInt(state.total - state.offset)} 件）</button>`;
-    $('#btn-more').addEventListener('click', () => fetchPage(false));
+  if (state.loadingMore) {
+    el.more.innerHTML = '<span class="spinner" role="status" aria-label="読み込み中"></span>';
+  } else if (state.offset < state.total) {
+    el.more.textContent = `残り ${fmtInt(state.total - state.offset)} 件`;
   } else {
     el.more.textContent = state.total > state.limit ? 'すべて表示しました' : '';
   }
+}
+
+/** 一覧がスクロールできない高さのままなら、スクロール待ちにならないよう先に読む。 */
+function autoLoadIfShort() {
+  if (state.loading || state.offset >= state.total) return;
+  if (el.list.scrollHeight <= el.list.clientHeight + SCROLL_MARGIN) fetchPage(false);
 }
 
 el.list.addEventListener('click', (ev) => {
@@ -404,7 +422,7 @@ el.list.addEventListener('click', (ev) => {
 
 el.list.addEventListener('scroll', () => {
   if (state.loading || state.offset >= state.total) return;
-  if (el.list.scrollTop + el.list.clientHeight > el.list.scrollHeight - 400) fetchPage(false);
+  if (el.list.scrollTop + el.list.clientHeight > el.list.scrollHeight - SCROLL_MARGIN) fetchPage(false);
 });
 
 /* ---------------------------------------------------------------- reader */
