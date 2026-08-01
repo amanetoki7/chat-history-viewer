@@ -69,6 +69,22 @@ function renderRich(text) {
   return html;
 }
 
+/* ---------------------------------------------------------------- icons */
+
+/* Tabler Icons (outline) の path をそのまま埋め込む */
+const ICONS = {
+  copy:
+    '<path d="M7 7m0 2.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667z"/>' +
+    '<path d="M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1"/>',
+  share: '<path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M7 9l5 -5l5 5"/><path d="M12 4l0 12"/>',
+  pencil: '<path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"/><path d="M13.5 6.5l4 4"/>',
+  check: '<path d="M5 12l5 5l10 -10"/>',
+};
+
+const icon = (name) =>
+  `<svg class="ti" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
+  `stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+
 /* ---------------------------------------------------------------- utils */
 
 const $ = (sel) => document.querySelector(sel);
@@ -273,7 +289,8 @@ function writeHash() {
 
 function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
-  return { q: p.get('q') || '', id: p.get('id') || '' };
+  const t = p.get('t');
+  return { q: p.get('q') || '', id: p.get('id') || '', turn: t == null ? null : Number(t) };
 }
 
 async function reload() {
@@ -409,9 +426,13 @@ async function openConversation(relPath, focusTurn) {
           <div class="turn-head">
             <span class="turn-who">${escapeHtml(who)}</span>
             ${turn.time ? `<span>${escapeHtml(turn.time)}</span>` : ''}
-            <button class="icon-btn turn-copy" data-copy="${turn.index}">コピー</button>
           </div>
           <div class="bubble md">${renderRich(turn.text)}${extras}</div>
+          <div class="turn-actions">
+            <button class="act" data-act="copy" data-turn="${turn.index}" title="コピー" aria-label="コピー">${icon('copy')}</button>
+            <button class="act" data-act="share" data-turn="${turn.index}" title="共有（この発言へのリンク）" aria-label="共有">${icon('share')}</button>
+            <button class="act" data-act="edit" data-turn="${turn.index}" title="Obsidian で編集" aria-label="編集">${icon('pencil')}</button>
+          </div>
         </div>`;
     })
     .join('');
@@ -452,12 +473,8 @@ async function openConversation(relPath, focusTurn) {
     }
   }
 
-  el.conversation.querySelectorAll('[data-copy]').forEach((btn) =>
-    btn.addEventListener('click', async () => {
-      await navigator.clipboard.writeText(conv.turns[Number(btn.dataset.copy)].text);
-      btn.textContent = 'コピー済';
-      setTimeout(() => (btn.textContent = 'コピー'), 1200);
-    })
+  el.conversation.querySelectorAll('.turn-actions .act').forEach((btn) =>
+    btn.addEventListener('click', () => runTurnAction(btn, conv))
   );
 
   if (focusTurn !== null && focusTurn >= 0) {
@@ -472,6 +489,50 @@ async function openConversation(relPath, focusTurn) {
     }
   }
   if (hitMarks.length) gotoHit(1);
+}
+
+/** 発言へのパーマリンク（#id=…&t=…）。開き直すとその発言までスクロールする。 */
+function turnLink(turnIndex) {
+  const p = new URLSearchParams({ id: state.activeId, t: String(turnIndex) });
+  return `${location.origin}${location.pathname}#${p}`;
+}
+
+/** 吹き出し下のアクション（コピー / 共有 / 編集）を実行する。 */
+async function runTurnAction(btn, conv) {
+  const turn = conv.turns[Number(btn.dataset.turn)];
+  const original = btn.innerHTML;
+  const flash = (name) => {
+    btn.innerHTML = icon(name);
+    btn.classList.add('done');
+    setTimeout(() => {
+      btn.innerHTML = original;
+      btn.classList.remove('done');
+    }, 1200);
+  };
+
+  if (btn.dataset.act === 'copy') {
+    await navigator.clipboard.writeText(turn.text);
+    flash('check');
+    return;
+  }
+
+  if (btn.dataset.act === 'share') {
+    const url = turnLink(turn.index);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: conv.title, url });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // ユーザーが共有シートを閉じただけ
+      }
+    }
+    await navigator.clipboard.writeText(url); // 共有先がなければリンクをコピー
+    flash('check');
+    return;
+  }
+
+  // 編集：元の Markdown を Obsidian で開く
+  location.href = 'obsidian://open?path=' + encodeURIComponent(conv.absPath);
 }
 
 function gotoHit(delta) {
@@ -577,5 +638,5 @@ el.q.value = initial.q;
 loadStats()
   .then(reload)
   .then(() => {
-    if (initial.id) openConversation(initial.id, null);
+    if (initial.id) openConversation(initial.id, initial.turn);
   });

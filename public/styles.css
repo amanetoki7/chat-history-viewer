@@ -25,7 +25,7 @@
 html[data-theme="light"] {
   --bg: #fcfcfc;
   --bg-elev: #ffffff;
-  --bg-elev-2: #f7f8fa;
+  --bg-elev-2: #efefef;
   --bg-hover: #eceef2;
   --border: #d8dce3;
   --border-soft: #e6e9ee;
@@ -298,8 +298,20 @@ kbd {
   margin-bottom: 5px; font-variant-numeric: tabular-nums;
 }
 .turn-who { font-weight: 650; color: var(--text-dim); }
-.turn-copy { opacity: 0; transition: opacity .12s; padding: 1px 8px; font-size: 11px; border-radius: 6px; }
-.turn:hover .turn-copy { opacity: 1; }
+
+/* 吹き出し下のアクション（コピー / 共有 / 編集） */
+.turn-actions { display: flex; gap: 2px; margin-top: 6px; opacity: 0; transition: opacity .12s; }
+.turn:hover .turn-actions, .turn:focus-within .turn-actions { opacity: 1; }
+.turn-actions .act {
+  display: grid; place-items: center;
+  width: 30px; height: 30px; padding: 0;
+  background: transparent; border: 0; border-radius: 8px;
+  color: var(--text-faint); cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.turn-actions .act:hover { background: var(--bg-hover); color: var(--text); }
+.turn-actions .act.done { color: var(--accent); }
+@media (hover: none) { .turn-actions { opacity: 1; } }
 
 .bubble {
   border: 1px solid var(--border-soft);
@@ -404,5 +416,17 @@ details.artifact > summary { color: #d97757; }
 
 .assistant > .bubble {
   background-color: transparent !important;
+  border: none !important;
+}
+
+#sidebar > section:nth-child(3) {
+  display: none !important;
+}
+
+.ri-preview {
+  display: none !important;
+}
+
+.result-item.active {
   border: none !important;
 }
