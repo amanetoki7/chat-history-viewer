@@ -11,6 +11,10 @@
 .conversation[data-source="chatgpt"] {
   --chat-max-width: 820px;
 
+  --chat-bg: #212121;
+  --code-bg: #2f2f2f;
+  --block-bg: #2f2f2f;
+
   --bubble-radius: 18px;
   --bubble-tail-radius: 18px;         /* 尻尾は作らず全周同じ丸み */
   --bubble-padding: 10px 18px;
@@ -24,5 +28,8 @@
 }
 
 html[data-theme="light"] .conversation[data-source="chatgpt"] {
+  --chat-bg: #fcfcfc;
+  --code-bg: #f4f4f4;
+  --block-bg: #f4f4f4;
   --user-bubble-bg: #ececec;
 }

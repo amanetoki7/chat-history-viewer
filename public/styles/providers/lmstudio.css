@@ -11,6 +11,10 @@
 .conversation[data-source="lmstudio"] {
   --chat-max-width: 900px;
 
+  --chat-bg: #16131d;
+  --code-bg: #1e1a29;
+  --block-bg: #1e1a29;
+
   --bubble-radius: 8px;
   --bubble-tail-radius: 8px;
 
@@ -29,6 +33,9 @@
 }
 
 html[data-theme="light"] .conversation[data-source="lmstudio"] {
+  --chat-bg: #fbfaff;
+  --code-bg: #f4f1fc;
+  --block-bg: #f4f1fc;
   --user-bubble-bg: #f1edfb;
   --user-bubble-border: #e0d7f5;
   --chat-link-color: #7c3aed;

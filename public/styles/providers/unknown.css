@@ -16,6 +16,20 @@
   --user-bubble-max-width: 74%;
 }
 
+/* 例0: チャットの背景色を変える（--chat-bg は本文の地の色。
+   コード・折りたたみブロックも合わせて濃さを調整すると馴染む）
+.conversation[data-source="unknown"] {
+  --chat-bg: #14161c;
+  --code-bg: #1b1e26;
+  --block-bg: #1b1e26;
+}
+html[data-theme="light"] .conversation[data-source="unknown"] {
+  --chat-bg: #ffffff;
+  --code-bg: #f2f3f5;
+  --block-bg: #f2f3f5;
+}
+*/
+
 /* 例1: 本文の一部だけ差し替える
 .conversation[data-source="unknown"] .md pre { border-style: dashed; }
 */

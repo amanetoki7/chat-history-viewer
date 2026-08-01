@@ -118,7 +118,8 @@ public/             フロントエンド（依存フレームワークなし）
 ```css
 /* public/styles/providers/claude.css */
 .conversation[data-source="claude"] {
-  --user-bubble-bg: #f0eee6;
+  --chat-bg: #262624;          /* チャットの背景色 */
+  --user-bubble-bg: #30302e;
   --chat-link-color: #d97757;
 }
 ```

@@ -12,6 +12,10 @@
   --chat-max-width: 860px;
   --chat-line-height: 1.75;
 
+  --chat-bg: #262624;
+  --code-bg: #1f1e1d;
+  --block-bg: #30302e;
+
   --bubble-radius: 14px;
   --bubble-tail-radius: 14px;
   --bubble-padding: 11px 17px;
@@ -29,10 +33,11 @@
 }
 
 html[data-theme="light"] .conversation[data-source="claude"] {
+  --chat-bg: #fcfcfb;
+  --code-bg: #f0eee6;
+  --block-bg: #f5f4ed;
   --user-bubble-bg: #f0eee6;
   --user-bubble-border: #e5e1d6;
-  --block-bg: #faf9f5;
-  --bg: #f9f9f7;
 }
 
 /* artifact は本文と切り離して見えるよう、少し強めの枠にする */

@@ -11,6 +11,9 @@
  */
 
 .conversation {
+  /* 背景（未指定ならアプリの地の色） */
+  --chat-bg: var(--bg);
+
   /* レイアウト */
   --chat-max-width: 1000px;
   --chat-padding: 22px 28px 120px;
@@ -57,6 +60,12 @@
 }
 
 /* ------------------------------------------------------------------ 発言 */
+
+/* 会話が短くてもリーダーの下端まで塗る */
+.conversation {
+  min-height: 100%;
+  background: var(--chat-bg);
+}
 
 .turns {
   padding: var(--chat-padding);
@@ -154,7 +163,7 @@
   display: block; overflow-x: auto; max-width: 100%;
 }
 .md th, .md td { border: 1px solid var(--border); padding: 6px 11px; text-align: left; }
-.md th { background: var(--bg-elev-2); font-weight: 650; }
+.md th { background: var(--code-bg); font-weight: 650; }
 .md img { max-width: 100%; height: auto; border-radius: 8px; }
 
 /* Claude の artifact / thinking、Perplexity の出典など */

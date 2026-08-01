@@ -14,6 +14,10 @@
   --chat-line-height: 1.75;
   --turn-gap: 26px;
 
+  --chat-bg: #1f1f1f;
+  --code-bg: #2d2f31;
+  --block-bg: #2d2f31;
+
   --bubble-radius: 0;
   --bubble-tail-radius: 0;
   --bubble-padding: 0;
@@ -28,6 +32,9 @@
 }
 
 html[data-theme="light"] .conversation[data-source="google_ai_mode"] {
+  --chat-bg: #ffffff;
+  --code-bg: #f1f3f4;
+  --block-bg: #f1f3f4;
   --chat-link-color: #1a73e8;
 }
 

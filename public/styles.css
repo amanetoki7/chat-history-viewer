@@ -320,7 +320,8 @@ kbd {
 
 .conv-head {
   position: sticky; top: 0; z-index: 10;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  /* チャットの背景色（styles/providers/*.css）に合わせて透ける */
+  background: color-mix(in srgb, var(--chat-bg, var(--bg)) 88%, transparent);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
   padding: 14px 28px 12px;

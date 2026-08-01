@@ -11,6 +11,10 @@
 .conversation[data-source="gemini"] {
   --chat-max-width: 840px;
 
+  --chat-bg: #1b1c1d;
+  --code-bg: #282a2c;
+  --block-bg: #282a2c;
+
   --bubble-radius: 20px;
   --bubble-tail-radius: 20px;
   --bubble-padding: 12px 20px;
@@ -25,6 +29,9 @@
 }
 
 html[data-theme="light"] .conversation[data-source="gemini"] {
-  --user-bubble-bg: #f0f4f9;
+  --chat-bg: #ffffff;
+  --code-bg: #f0f4f9;
+  --block-bg: #f0f4f9;
+  --user-bubble-bg: #e9eef6;
   --chat-link-color: #1a73e8;
 }

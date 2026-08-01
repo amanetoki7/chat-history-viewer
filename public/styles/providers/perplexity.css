@@ -13,6 +13,10 @@
   --chat-line-height: 1.8;
   --turn-gap: 30px;
 
+  --chat-bg: #fcfcf9;
+  --code-bg: #f3f3ee;
+  --block-bg: #f7f7f3;
+
   --bubble-radius: 0;
   --bubble-tail-radius: 0;
   --bubble-padding: 0;
@@ -30,6 +34,9 @@
 }
 
 html[data-theme="dark"] .conversation[data-source="perplexity"] {
+  --chat-bg: #191a1a;
+  --code-bg: #202222;
+  --block-bg: #202222;
   --chat-link-color: #4bb8c4;
   --block-summary-color: #4bb8c4;
 }
