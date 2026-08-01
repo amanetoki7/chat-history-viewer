@@ -235,7 +235,7 @@ async function loadStats() {
     .map(
       (s) => `<label class="source-item">
         <input type="checkbox" value="${escapeHtml(s.id)}">
-        <span class="dot" style="background:${escapeHtml(s.color)}"></span>
+        ${sourceLogo(s.id, s, false)}
         <span class="source-name">${escapeHtml(s.label)}</span>
         <span class="source-count">${fmtInt(s.count)}</span>
       </label>`
@@ -354,11 +354,14 @@ function sourceMetaOf(id) {
 /** ロゴ画像を持つソース（画像は CSS 側で theme に応じて出し分け） */
 const LOGO_SOURCES = new Set(['chatgpt', 'claude', 'gemini', 'perplexity']);
 
-function sourceLogo(id, meta) {
+/** ロゴがなければ色ドットで代用。隣にラベルがある場合は labelled=false で読み上げを省く。 */
+function sourceLogo(id, meta, labelled = true) {
   const hasLogo = LOGO_SOURCES.has(id);
   const style = hasLogo ? '' : ` style="background-color:${escapeHtml(meta.color)}"`;
-  return `<span class="ri-logo${hasLogo ? '' : ' is-dot'}" data-source="${escapeHtml(id)}"
-    role="img" title="${escapeHtml(meta.label)}" aria-label="${escapeHtml(meta.label)}"${style}></span>`;
+  const a11y = labelled
+    ? ` role="img" title="${escapeHtml(meta.label)}" aria-label="${escapeHtml(meta.label)}"`
+    : ' aria-hidden="true"';
+  return `<span class="src-logo${hasLogo ? '' : ' is-dot'}" data-source="${escapeHtml(id)}"${a11y}${style}></span>`;
 }
 
 function renderItems(items) {

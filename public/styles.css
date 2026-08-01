@@ -142,12 +142,24 @@ select:hover, .icon-btn:hover, .btn-block:hover, .chip:hover { background: var(-
 .panel { padding: 14px 16px; border-bottom: 1px solid var(--border-soft); }
 .panel h2 {
   margin: 0 0 10px;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: 14px;
+  /* font-weight: 650; */
   letter-spacing: .08em;
   text-transform: uppercase;
-  color: var(--text-faint);
+  color: #0d0d0d;
 }
+
+/* ソースのロゴ（サイドバー・一覧の共通パーツ。画像は theme で出し分け） */
+.src-logo {
+  flex: 0 0 auto; width: 16px; height: 16px;
+  background-repeat: no-repeat; background-position: center; background-size: contain;
+}
+.src-logo.is-dot { width: 8px; height: 8px; margin: 0 4px; border-radius: 50%; }
+.src-logo[data-source="chatgpt"] { background-image: url("images/OpenAI-black-monoblossom.svg"); background-size: 150%; }
+html[data-theme="dark"] .src-logo[data-source="chatgpt"] { background-image: url("images/OpenAI-white-monoblossom.svg"); }
+.src-logo[data-source="claude"] { background-image: url("images/Claude_AI_symbol.svg"); }
+.src-logo[data-source="gemini"] { background-image: url("images/Google_Gemini_icon_2025.svg"); }
+.src-logo[data-source="perplexity"] { background-image: url("images/perplexity-color.svg"); }
 
 .source-list { display: flex; flex-direction: column; gap: 2px; }
 .source-item {
@@ -158,7 +170,6 @@ select:hover, .icon-btn:hover, .btn-block:hover, .chip:hover { background: var(-
 }
 .source-item:hover { background: var(--bg-hover); }
 .source-item input { accent-color: var(--accent); margin: 0; }
-.dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 .source-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .source-count { color: var(--text-faint); font-size: 12px; font-variant-numeric: tabular-nums; }
 
@@ -207,7 +218,7 @@ html[data-theme="dark"] .date-row input::-webkit-calendar-picker-indicator { fil
 .result-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1 1 auto; }
 
 .result-item {
-  padding: 4px 6px;
+  padding: 4px 10px;
   border-radius: var(--radius);
   border: 1px solid transparent;
   cursor: pointer;
@@ -218,16 +229,6 @@ html[data-theme="dark"] .date-row input::-webkit-calendar-picker-indicator { fil
 .result-item.cursor { box-shadow: inset 2px 0 0 var(--accent); }
 
 .ri-head { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
-.ri-logo {
-  flex: 0 0 auto; width: 16px; height: 16px;
-  background-repeat: no-repeat; background-position: center; background-size: contain;
-}
-.ri-logo.is-dot { width: 8px; height: 8px; margin: 0 3.5px; border-radius: 50%; }
-.ri-logo[data-source="chatgpt"] { background-image: url("images/OpenAI-black-monoblossom.svg");   background-size: 150%;}
-html[data-theme="dark"] .ri-logo[data-source="chatgpt"] { background-image: url("images/OpenAI-white-monoblossom.svg"); }
-.ri-logo[data-source="claude"] { background-image: url("images/Claude_AI_symbol.svg"); }
-.ri-logo[data-source="gemini"] { background-image: url("images/Google_Gemini_icon_2025.svg"); }
-.ri-logo[data-source="perplexity"] { background-image: url("images/perplexity-color.svg"); }
 .ri-title {
   flex: 1 1 auto; min-width: 0;
   /* font-weight: 600; */
