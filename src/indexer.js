@@ -11,8 +11,16 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { CHAT_ROOT, CACHE_DIR, CACHE_META, CACHE_BLOB, EXTENSIONS, IGNORED_DIRS } from './config.js';
-import { parseChatFile, stripDataUriPayloads } from './parser.js';
+import {
+  CHAT_ROOT,
+  CACHE_DIR,
+  CACHE_META,
+  CACHE_BLOB,
+  EXTENSIONS,
+  IGNORED_DIRS,
+  REQUIRED_PROPERTY,
+} from './config.js';
+import { parseChatFile, stripDataUriPayloads, normalizeText } from './parser.js';
 
 const CACHE_SEGS = path.join(CACHE_DIR, 'segments.bin');
 const CACHE_VERSION = 4;
@@ -22,6 +30,37 @@ export const ROLE_NAME = ['title', 'user', 'assistant', 'note'];
 
 /** @type {{entries: any[], blob: Buffer, segments: Int32Array, builtAt: number, root: string}} */
 export let index = { entries: [], blob: Buffer.alloc(0), segments: new Int32Array(0), builtAt: 0, root: CHAT_ROOT };
+
+/** フロントマター判定のために先頭だけ読むバイト数。実データは 300 バイト前後。 */
+const PROBE_BYTES = 4096;
+
+const PROPERTY_LINE = new RegExp(`^${REQUIRED_PROPERTY}\\s*:\\s*(.*)$`, 'i');
+const FRONTMATTER_END = /^(---|\.\.\.)\s*$/;
+
+/** 先頭のフロントマターに値付きの `base` があるか。全文は読まない。 */
+function frontmatterHasProperty(head) {
+  const text = normalizeText(head);
+  if (!text.startsWith('---\n')) return false;
+  for (const line of text.slice(4).split('\n')) {
+    if (FRONTMATTER_END.test(line)) return false;
+    const m = PROPERTY_LINE.exec(line);
+    if (m) return m[1].trim() !== '';
+  }
+  return false; // 4KB 内に見つからなければ対象外
+}
+
+async function hasRequiredProperty(abs) {
+  let fh;
+  try {
+    fh = await fs.open(abs, 'r');
+    const { buffer, bytesRead } = await fh.read({ buffer: Buffer.alloc(PROBE_BYTES), position: 0 });
+    return frontmatterHasProperty(buffer.toString('utf8', 0, bytesRead));
+  } catch {
+    return false;
+  } finally {
+    await fh?.close().catch(() => {});
+  }
+}
 
 /** ルート以下を再帰的に走査してファイル一覧を返す。 */
 async function scanFiles(root) {
@@ -44,6 +83,7 @@ async function scanFiles(root) {
       if (!dirent.isFile()) continue;
       const ext = path.extname(dirent.name).toLowerCase();
       if (!EXTENSIONS.has(ext)) continue;
+      if (!(await hasRequiredProperty(abs))) continue;
       let st;
       try {
         st = await fs.stat(abs);

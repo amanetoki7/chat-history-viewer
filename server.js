@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { CHAT_ROOT, PORT, ROOT_DIR, SOURCE_META } from './src/config.js';
+import { CHAT_ROOT, PORT, ROOT_DIR, SOURCE_META, SOURCE_ORDER } from './src/config.js';
 import { ensureIndex, index, loadConversation, resolveEntryPath } from './src/indexer.js';
 import { search, parseQuery, buildSnippets } from './src/search.js';
 import { splitThreadSections } from './src/parser.js';
@@ -24,6 +24,12 @@ app.use(express.json({ limit: '1mb' }));
 let indexing = false;
 
 /* ------------------------------------------------------------------ API */
+
+/** SOURCE_ORDER の並び順。未知のソースは末尾（件数順）に回す。 */
+function sourceRank(id) {
+  const i = SOURCE_ORDER.indexOf(id);
+  return i === -1 ? SOURCE_ORDER.length : i;
+}
 
 app.get('/api/stats', (_req, res) => {
   const bySource = new Map();
@@ -54,7 +60,7 @@ app.get('/api/stats', (_req, res) => {
     latest: Number.isFinite(latest) ? latest : null,
     sources: [...bySource.entries()]
       .map(([id, count]) => ({ id, count, ...(SOURCE_META[id] || SOURCE_META.unknown) }))
-      .sort((a, b) => b.count - a.count),
+      .sort((a, b) => sourceRank(a.id) - sourceRank(b.id) || b.count - a.count),
   });
 });
 

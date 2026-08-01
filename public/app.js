@@ -352,7 +352,7 @@ function sourceMetaOf(id) {
 }
 
 /** ロゴ画像を持つソース（画像は CSS 側で theme に応じて出し分け） */
-const LOGO_SOURCES = new Set(['chatgpt', 'claude', 'gemini', 'perplexity']);
+const LOGO_SOURCES = new Set(['chatgpt', 'claude', 'gemini', 'google_ai_mode', 'perplexity']);
 
 /** ロゴがなければ色ドットで代用。隣にラベルがある場合は labelled=false で読み上げを省く。 */
 function sourceLogo(id, meta, labelled = true) {

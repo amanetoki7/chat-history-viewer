@@ -18,7 +18,13 @@ export const CACHE_BLOB = path.join(CACHE_DIR, 'search.bin');
 export const PORT = Number(process.env.PORT || 5173);
 
 /** 索引対象の拡張子 */
-export const EXTENSIONS = new Set(['.md', '.txt']);
+export const EXTENSIONS = new Set(['.md']);
+
+/**
+ * 索引対象とするフロントマターのプロパティ名。
+ * Obsidian Bases に属するチャットノートだけを拾い、手書きのメモ等を除外する。
+ */
+export const REQUIRED_PROPERTY = 'base';
 
 /** 走査から除外するディレクトリ名 */
 export const IGNORED_DIRS = new Set(['.obsidian', '.trash', '.git', 'node_modules']);
@@ -33,13 +39,16 @@ export const FOLDER_SOURCE_HINTS = [
   ['google ai', 'google_ai_mode'],
 ];
 
-/** UI 表示用のソース定義 */
+/** UI 表示用のソース定義。定義順がそのままソース一覧の表示順になる。 */
 export const SOURCE_META = {
   chatgpt: { label: 'ChatGPT', color: '#10a37f' },
   claude: { label: 'Claude', color: '#d97757' },
   gemini: { label: 'Gemini', color: '#4285f4' },
+  google_ai_mode: { label: 'Google AI Mode', color: '#ea4335' },
   perplexity: { label: 'Perplexity', color: '#20808d' },
-  google_ai_mode: { label: 'Google AI', color: '#ea4335' },
   lmstudio: { label: 'LM Studio', color: '#8b5cf6' },
   unknown: { label: 'その他', color: '#8a8f98' },
 };
+
+/** ソース一覧の表示順。ここに無い ID は末尾に回す。 */
+export const SOURCE_ORDER = Object.keys(SOURCE_META);
