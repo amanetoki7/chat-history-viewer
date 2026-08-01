@@ -32,6 +32,7 @@ html[data-theme="light"] .conversation[data-source="claude"] {
   --user-bubble-bg: #f0eee6;
   --user-bubble-border: #e5e1d6;
   --block-bg: #faf9f5;
+  --bg: #f9f9f7;
 }
 
 /* artifact は本文と切り離して見えるよう、少し強めの枠にする */
