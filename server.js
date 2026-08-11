@@ -7,6 +7,7 @@ import { search, parseQuery, buildSnippets } from './src/search.js';
 import { splitThreadSections } from './src/parser.js';
 import { planQueries, retrieve, answerStream } from './src/ask.js';
 import { ensureEmbeddings, embeddingsStatus } from './src/embeddings.js';
+import { startWatcher, watcherStatus } from './src/watcher.js';
 import {
   createResearchJob,
   getJob,
@@ -56,6 +57,7 @@ app.get('/api/stats', (_req, res) => {
     indexBytes: index.blob.length,
     builtAt: index.builtAt,
     indexing,
+    watcher: watcherStatus(),
     earliest: Number.isFinite(earliest) ? earliest : null,
     latest: Number.isFinite(latest) ? latest : null,
     sources: [...bySource.entries()]
@@ -283,6 +285,8 @@ ensureIndex({ force, log: (m) => console.log('[index]', m) })
   .then(() => {
     // 意味検索用の埋め込みは起動をブロックせずに裏で構築・更新する
     ensureEmbeddings({ log: (m) => console.log('[embed]', m) });
+    // ファイルの追加・変更・削除を監視して索引と埋め込みへ即時反映する
+    startWatcher({ log: (m) => console.log('[watch]', m) });
     // Deep リサーチの Worker（再起動時は未完了ジョブを再キューして続行）
     startResearchWorker({ log: (m) => console.log('[research]', m) });
     app.listen(PORT, () => {

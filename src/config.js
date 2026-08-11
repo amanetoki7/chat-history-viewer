@@ -11,7 +11,8 @@ export const CHAT_ROOT = path.resolve(
   process.env.CHAT_ROOT || path.join(os.homedir(), 'Obsidian', 'AI Chats')
 );
 
-export const CACHE_DIR = path.join(ROOT_DIR, '.cache');
+/** 解析結果・埋め込みの保存先。CHV_CACHE_DIR 環境変数で上書きできる。 */
+export const CACHE_DIR = path.resolve(process.env.CHV_CACHE_DIR || path.join(ROOT_DIR, '.cache'));
 export const CACHE_META = path.join(CACHE_DIR, 'index.json');
 export const CACHE_BLOB = path.join(CACHE_DIR, 'search.bin');
 

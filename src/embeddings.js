@@ -39,6 +39,8 @@ const state = {
   files: new Map(),
   loaded: false,
   building: false,
+  /** 構築中に新たな変更が届いたか（終わり次第もう一度回す） */
+  rerun: false,
   filesDone: 0,
   filesTotal: 0,
   lastError: null,
@@ -228,10 +230,26 @@ async function loadCache(model) {
 
 /**
  * 索引 (index.entries) に合わせて埋め込みを増分構築する。
- * 実行中の再入は無視。失敗しても例外は投げず status に記録する。
+ *
+ * 構築中に呼ばれた場合は「終わったらもう一度」だけを記録して即座に戻る。
+ * 監視によるファイル変更が構築中に届いても取りこぼさないようにするため。
+ * 失敗しても例外は投げず status に記録する。
  */
-export async function ensureEmbeddings({ force = false, log = () => {} } = {}) {
-  if (state.building) return;
+export async function ensureEmbeddings(options = {}) {
+  if (state.building) {
+    state.rerun = true;
+    return;
+  }
+  for (;;) {
+    state.rerun = false;
+    await buildEmbeddings(options);
+    if (!state.rerun) return;
+    // 再実行は増分のみでよい（force は初回で消化済み）
+    options = { ...options, force: false };
+  }
+}
+
+async function buildEmbeddings({ force = false, log = () => {} } = {}) {
   state.building = true;
   state.lastError = null;
   try {
@@ -245,7 +263,13 @@ export async function ensureEmbeddings({ force = false, log = () => {} } = {}) {
 
     // 索引から消えたファイルを落とす
     const wanted = new Set(index.entries.map((e) => e.relPath));
-    for (const key of [...state.files.keys()]) if (!wanted.has(key)) state.files.delete(key);
+    let dropped = 0;
+    for (const key of [...state.files.keys()]) {
+      if (!wanted.has(key)) {
+        state.files.delete(key);
+        dropped++;
+      }
+    }
 
     const todo = index.entries.filter((e) => {
       const f = state.files.get(e.relPath);
@@ -254,7 +278,13 @@ export async function ensureEmbeddings({ force = false, log = () => {} } = {}) {
     state.filesTotal = todo.length;
     state.filesDone = 0;
     if (!todo.length) {
-      log(`埋め込みは最新です (${totalChunks()} チャンク, model: ${model})`);
+      // 削除だけだった場合もキャッシュを書き直す（消えた会話が検索に残らないように）
+      if (dropped) {
+        await saveCache();
+        log(`埋め込みから ${dropped} 件を削除しました`);
+      } else {
+        log(`埋め込みは最新です (${totalChunks()} チャンク, model: ${model})`);
+      }
       return;
     }
     log(`埋め込みを構築します: ${todo.length.toLocaleString()} 件 (model: ${model})`);
