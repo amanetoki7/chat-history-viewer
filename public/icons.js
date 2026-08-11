@@ -66,6 +66,13 @@ const ICONS = {
     '<path d="M5 21h14"/><path d="M6 18h2"/><path d="M7 18v3"/><path d="M9 11l3 3l6 -6l-3 -3l-6 6"/>' +
     '<path d="M10.5 12.5l-1.5 1.5"/><path d="M17 3l3 3"/><path d="M12 21a6 6 0 0 0 3.715 -10.712"/>',
   'chevron-down': '<path d="M6 9l6 6l6 -6"/>',
+  refresh:
+    '<path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>' +
+    '<path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>',
+  trash:
+    '<path d="M4 7l16 0"/><path d="M10 11l0 6"/><path d="M14 11l0 6"/>' +
+    '<path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/>' +
+    '<path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>',
 };
 
 /** 塗りで描くアイコン（線ではなく面） */

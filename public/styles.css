@@ -367,6 +367,50 @@ mark { background: var(--mark-bg); color: var(--mark-text); border-radius: 2px; 
   .spinner { animation-duration: 2s; }
 }
 
+/* ------------------------------------------- 更新の即時反映（ファイル監視） */
+
+/* 一覧をその場で差し替えられない状況（スクロール中・検索中）で出す */
+.update-pill {
+  margin-left: 8px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 9px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit; font-size: 11px; font-weight: 600;
+  cursor: pointer;
+  animation: pill-pop .18s ease-out;
+}
+.update-pill:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+@keyframes pill-pop { from { opacity: 0; transform: translateY(-4px); } }
+
+/* 監視による更新の通知 */
+.toast {
+  position: fixed; right: 20px; bottom: 18px; z-index: 60;
+  max-width: min(360px, calc(100vw - 40px));
+  display: flex; align-items: center; gap: 7px;
+  padding: 9px 13px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-elev-2);
+  box-shadow: var(--shadow);
+  font-size: 12px; color: var(--text-dim);
+  animation: toast-in .18s ease-out;
+}
+.toast .ti { color: var(--accent); flex: none; }
+.toast.is-warn .ti { color: #e5a34a; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* 統計パネルの監視インジケータ */
+.watch-state { display: flex; align-items: center; gap: 6px; }
+.watch-dot { width: 7px; height: 7px; border-radius: 50%; background: #3fb950; flex: none; }
+.watch-state.is-off .watch-dot { background: var(--text-faint); }
+.watch-state.is-error .watch-dot { background: #e5484d; }
+
+@media (prefers-reduced-motion: reduce) {
+  .update-pill, .toast { animation: none; }
+}
+
 /* --------------------------------------------------------- reader（枠） */
 
 .reader { overflow-y: auto; min-width: 0; scroll-behavior: smooth; }

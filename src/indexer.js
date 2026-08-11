@@ -295,6 +295,31 @@ const SEG_GROW_MIN = 16 * 1024;
 const COMPACT_MIN_BYTES = 16 * 1024 * 1024;
 const COMPACT_RATIO = 0.2;
 
+/** 変更通知の購読者。フロントへ SSE で流すために server.js が使う。 */
+const listeners = new Set();
+
+/**
+ * 索引が変わったときに呼ばれる関数を登録する。
+ * @returns {() => void} 解除する関数
+ */
+export function onIndexChange(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+function emitIndexChange(detail) {
+  for (const fn of listeners) {
+    try {
+      fn(detail);
+    } catch {
+      /* 購読者の失敗で索引更新を止めない */
+    }
+  }
+}
+
+/** 1 回の通知に載せる変更パスの上限。これを超えたら truncated にする。 */
+const MAX_CHANGES = 300;
+
 /** 索引の更新を直列化する（全再構築と監視による増分更新が競合しないように）。 */
 let queue = Promise.resolve();
 function exclusive(task) {
@@ -431,14 +456,22 @@ function isIgnored(relPath) {
 
 /**
  * 変更対象の一覧（relPath → ファイル情報 / 削除なら null）を索引へ適用する。
- * @returns {{added: number, updated: number, removed: number, unchanged: number}}
+ * @returns {{added: number, updated: number, removed: number, unchanged: number,
+ *            changes: Array<{relPath: string, kind: string}>, truncated: boolean}}
  */
 async function applyTargets(targets) {
-  const result = { added: 0, updated: 0, removed: 0, unchanged: 0 };
+  const result = { added: 0, updated: 0, removed: 0, unchanged: 0, changes: [], truncated: false };
+
+  /** @param {'added'|'updated'|'removed'} kind */
+  const note = (relPath, kind) => {
+    result[kind]++;
+    if (result.changes.length < MAX_CHANGES) result.changes.push({ relPath, kind });
+    else result.truncated = true;
+  };
 
   for (const [relPath, file] of targets) {
     if (!file) {
-      if (dropEntry(relPath)) result.removed++;
+      if (dropEntry(relPath)) note(relPath, 'removed');
       continue;
     }
     const { at, found } = locateEntry(relPath);
@@ -451,17 +484,17 @@ async function applyTargets(targets) {
     }
     const conv = await loadConversation(file);
     if (!conv) {
-      if (dropEntry(relPath)) result.removed++;
+      if (dropEntry(relPath)) note(relPath, 'removed');
       continue;
     }
-    if (putConversation(conv) === 'added') result.added++;
-    else result.updated++;
+    note(relPath, putConversation(conv) === 'added' ? 'added' : 'updated');
   }
 
   if (result.added || result.updated || result.removed) {
     compactIfNeeded();
     publishStores();
     index.builtAt = Date.now();
+    emitIndexChange({ ...result, reason: 'watch' });
   }
   return result;
 }
@@ -587,6 +620,8 @@ export function ensureIndex({ force = false, log = () => {} } = {}) {
     adoptIndex(built);
     await saveCache(built, files);
     log(`索引構築 完了 (${((Date.now() - started) / 1000).toFixed(1)}s, 検索対象 ${(built.blob.length / 1024 / 1024).toFixed(1)} MB)`);
+    // 全再構築は「何が変わったか」を持たないので、まとめて変わったものとして通知する
+    emitIndexChange({ added: 0, updated: 0, removed: 0, unchanged: 0, changes: [], truncated: true, reason: 'rebuild' });
     return { index, cached: false, files: files.length, ms: Date.now() - started };
   });
 }

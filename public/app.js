@@ -187,6 +187,7 @@ const el = {
   from: $('#from'), to: $('#to'), favorite: $('#favorite'), archived: $('#archived'),
   sources: $('#sources'), stats: $('#stats'),
   list: $('#result-list'), count: $('#result-count'), took: $('#result-took'), more: $('#result-more'),
+  updatePill: $('#update-pill'), toast: $('#toast'),
   reader: $('#reader'), conversation: $('#conversation'), readerEmpty: $('#reader-empty'),
   hint: $('#search-hint'),
   btnSearch: $('#btn-search'), modal: $('#search-modal'),
@@ -216,14 +217,25 @@ $('#btn-theme').addEventListener('click', () => {
 $('#btn-menu').addEventListener('click', () => document.body.classList.toggle('menu-open'));
 $('#scrim').addEventListener('click', () => document.body.classList.remove('menu-open'));
 
+/** ファイル監視の状態表示（緑=監視中 / 灰=オフ / 赤=停止中） */
+function watchStateHtml(watcher) {
+  if (!watcher) return '';
+  if (!watcher.enabled) return '<div class="watch-state is-off"><span class="watch-dot"></span>監視オフ</div>';
+  if (!watcher.watching)
+    return '<div class="watch-state is-error"><span class="watch-dot"></span>監視が停止中（再開を試みています）</div>';
+  const at = watcher.lastAppliedAt ? `（最終更新 ${fmtDate(watcher.lastAppliedAt, true)}）` : '';
+  return `<div class="watch-state"><span class="watch-dot"></span>変更を監視中${at}</div>`;
+}
+
 async function loadStats() {
   const stats = await fetch('/api/stats').then((r) => r.json());
   state.allSources = stats.sources;
 
+  // 監視による更新で描き直されるので、選択中のソースは state から復元する
   el.sources.innerHTML = stats.sources
     .map(
       (s) => `<label class="source-item">
-        <input type="checkbox" value="${escapeHtml(s.id)}">
+        <input type="checkbox" value="${escapeHtml(s.id)}"${state.sources.has(s.id) ? ' checked' : ''}>
         ${sourceLogo(s.id, s, false)}
         <span class="source-name">${escapeHtml(s.label)}</span>
         <span class="source-count">${fmtInt(s.count)}</span>
@@ -244,6 +256,7 @@ async function loadStats() {
     <div>本文 <b>${fmtInt(Math.round(stats.totalChars / 10000))}</b> 万文字（索引 ${(stats.indexBytes / 1048576).toFixed(0)} MB）</div>
     <div>${fmtDate(stats.earliest)} 〜 ${fmtDate(stats.latest)}</div>
     <div class="root">${escapeHtml(stats.root)}</div>
+    ${watchStateHtml(stats.watcher)}
     <button class="btn-block" id="btn-reindex">索引を再構築</button>`;
 
   $('#btn-reindex').addEventListener('click', async (ev) => {
@@ -293,13 +306,18 @@ async function reload() {
   await fetchPage(true);
 }
 
-async function fetchPage(reset) {
+/**
+ * 一覧を読み込む。
+ * @param {boolean} reset 先頭から読み直すか
+ * @param {{quiet?: boolean}} options quiet=true なら「検索中…」を出さずに差し替える（監視による自動更新用）
+ */
+async function fetchPage(reset, { quiet = false } = {}) {
   if (state.loading) return;
   state.loading = true;
   state.loadingMore = !reset;
   const seq = ++state.seq;
 
-  if (reset) {
+  if (reset && !quiet) {
     el.count.textContent = '検索中…';
     el.took.textContent = '';
   }
@@ -531,14 +549,24 @@ el.q.addEventListener('keydown', (ev) => {
 let hitMarks = [];
 let hitIndex = -1;
 
-async function openConversation(relPath, focusTurn) {
+/**
+ * 会話を開く。
+ * @param {string} relPath
+ * @param {number|null} focusTurn スクロールして光らせる発言
+ * @param {{keepScroll?: boolean}} options keepScroll=true なら読書位置を保つ（監視による再読み込み用）
+ */
+async function openConversation(relPath, focusTurn, { keepScroll = false } = {}) {
   state.activeId = relPath;
   el.list.querySelectorAll('.result-item').forEach((li) => li.classList.toggle('active', li.dataset.id === relPath));
   document.body.classList.add('reading');
   writeHash();
 
+  const scrollTop = el.reader.scrollTop;
   const conv = await fetch('/api/conversation?id=' + encodeURIComponent(relPath)).then((r) => r.json());
-  if (conv.error) return;
+  if (conv.error) {
+    if (keepScroll) showToast('この会話は索引から消えました', { iconName: 'trash', warn: true, ms: 0 });
+    return;
+  }
 
   const links = [];
   if (conv.url)
@@ -592,7 +620,7 @@ async function openConversation(relPath, focusTurn) {
 
   el.conversation.hidden = false;
   el.readerEmpty.hidden = true;
-  el.reader.scrollTop = 0;
+  el.reader.scrollTop = keepScroll ? scrollTop : 0;
 
   // 検索語をハイライトし、一致箇所を辿れるようにする
   hitMarks = [];
@@ -623,7 +651,8 @@ async function openConversation(relPath, focusTurn) {
       return;
     }
   }
-  if (hitMarks.length) gotoHit(1);
+  // 監視による再読み込みでは、読んでいた位置を一致箇所へ飛ばさない
+  if (hitMarks.length && !keepScroll) gotoHit(1);
 }
 
 /** 発言へのパーマリンク（#id=…&t=…）。開き直すとその発言までスクロールする。 */
@@ -766,6 +795,102 @@ document.addEventListener('keydown', (ev) => {
   }
 });
 
+/* -------------------------------------------------- 更新の即時反映（監視） */
+
+/**
+ * サーバはファイルの追加・変更・削除を監視していて、索引へ反映するたびに
+ * /api/events（SSE）で知らせてくる。ここではそれを画面へ映す。
+ *
+ *   - 開いている会話が変わった  … 読書位置を保ったまま読み直す
+ *   - 一覧が先頭・上端にある     … そのまま差し替える
+ *   - それ以外                   … 「N 件の更新」を出し、押されたら読み直す
+ */
+
+let toastTimer = null;
+
+/** 右下の通知。ms=0 なら消えない。 */
+function showToast(text, { iconName = 'refresh', warn = false, ms = 3200 } = {}) {
+  clearTimeout(toastTimer);
+  el.toast.className = 'toast' + (warn ? ' is-warn' : '');
+  el.toast.innerHTML = `${icon(iconName, 14)}<span>${escapeHtml(text)}</span>`;
+  el.toast.hidden = false;
+  if (ms) toastTimer = setTimeout(() => (el.toast.hidden = true), ms);
+}
+
+let pendingUpdates = 0;
+
+function showUpdatePill(count) {
+  pendingUpdates += count;
+  el.updatePill.innerHTML = icon('refresh', 12) + (pendingUpdates ? `${fmtInt(pendingUpdates)} 件の更新` : '更新があります');
+  el.updatePill.hidden = false;
+}
+
+function hideUpdatePill() {
+  pendingUpdates = 0;
+  el.updatePill.hidden = true;
+}
+
+/** 一覧をその場で差し替えてよいか（先頭ページを上端で見ているときだけ）。 */
+function canAutoRefreshList() {
+  return !state.loading && !isSearchOpen() && state.offset <= state.limit && el.list.scrollTop < 40;
+}
+
+const refreshStats = debounce(() => loadStats().catch(() => {}), 1200);
+
+async function onIndexChanged(detail) {
+  const changes = detail.changes || [];
+  const mine = state.activeId ? changes.find((c) => c.relPath === state.activeId) : null;
+
+  if (mine && mine.kind === 'removed') {
+    showToast('この会話のファイルは削除されました', { iconName: 'trash', warn: true, ms: 0 });
+  } else if (state.activeId && (mine || detail.truncated)) {
+    // truncated（全再構築など）のときは、開いている会話も変わったとみなして読み直す
+    await openConversation(state.activeId, null, { keepScroll: true });
+    if (mine) showToast('開いている会話を更新しました');
+  }
+
+  refreshStats();
+
+  if (canAutoRefreshList()) {
+    hideUpdatePill();
+    await fetchPage(true, { quiet: true });
+  } else {
+    showUpdatePill(detail.added + detail.updated + detail.removed);
+  }
+}
+
+el.updatePill.addEventListener('click', () => {
+  hideUpdatePill();
+  el.list.scrollTop = 0; // 新しいものを見るための操作なので先頭へ戻す
+  reload();
+});
+
+function startLiveUpdates() {
+  if (!window.EventSource) return;
+  const events = new EventSource('/api/events');
+  let connected = false;
+
+  events.addEventListener('hello', () => {
+    // 2 回目以降は再接続。切れている間の変更があるかもしれないので確認する
+    if (connected) {
+      refreshStats();
+      if (canAutoRefreshList()) fetchPage(true, { quiet: true });
+      else showUpdatePill(0);
+    }
+    connected = true;
+  });
+
+  events.addEventListener('index', (ev) => {
+    try {
+      onIndexChanged(JSON.parse(ev.data));
+    } catch (err) {
+      console.error(err);
+    }
+  });
+
+  // 切断時は EventSource が自動で再接続する（retry はサーバが指定）
+}
+
 /* ---------------------------------------------------------------- start */
 
 const initial = readHash();
@@ -777,4 +902,5 @@ loadStats()
   .then(reload)
   .then(() => {
     if (initial.id) openConversation(initial.id, initial.turn);
+    startLiveUpdates();
   });

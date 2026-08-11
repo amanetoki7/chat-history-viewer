@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { CHAT_ROOT, PORT, ROOT_DIR, SOURCE_META, SOURCE_ORDER } from './src/config.js';
-import { ensureIndex, index, loadConversation, resolveEntryPath } from './src/indexer.js';
+import { ensureIndex, index, loadConversation, onIndexChange, resolveEntryPath } from './src/indexer.js';
 import { search, parseQuery, buildSnippets } from './src/search.js';
 import { splitThreadSections } from './src/parser.js';
 import { planQueries, retrieve, answerStream } from './src/ask.js';
@@ -251,6 +251,37 @@ app.get('/api/research/:id/events', (req, res) => {
     }, 1000);
     req.on('close', () => clearInterval(timer));
   }
+});
+
+/* ------------------------------------------------- 索引の更新通知（SSE） */
+
+/** 経路上のプロキシに切られないための無通信対策 */
+const EVENTS_PING_MS = 25_000;
+
+app.get('/api/events', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  const send = (event, data) => {
+    if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  res.write('retry: 3000\n\n');
+  send('hello', { conversations: index.entries.length, builtAt: index.builtAt, watcher: watcherStatus() });
+
+  const off = onIndexChange((detail) =>
+    send('index', { ...detail, conversations: index.entries.length, builtAt: index.builtAt })
+  );
+  const ping = setInterval(() => {
+    if (!res.writableEnded) res.write(': ping\n\n');
+  }, EVENTS_PING_MS);
+
+  req.on('close', () => {
+    off();
+    clearInterval(ping);
+  });
 });
 
 app.post('/api/reindex', async (_req, res) => {

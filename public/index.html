@@ -79,6 +79,8 @@
     <div class="results-head">
       <span id="result-count">読み込み中…</span>
       <span id="result-took" class="took"></span>
+      <!-- 監視で変更が入ったが、一覧をその場で差し替えると読書位置を失う場合に出す -->
+      <button class="update-pill" id="update-pill" hidden></button>
     </div>
     <ol class="result-list" id="result-list"></ol>
     <div id="result-more" class="result-more"></div>
@@ -91,6 +93,8 @@
       <p class="empty-keys"><kbd>/</kbd> 検索　<kbd>J</kbd>/<kbd>K</kbd> 一覧移動　<kbd>Esc</kbd> 閉じる</p>
     </div>
     <article class="conversation" id="conversation" hidden></article>
+    <!-- ファイル監視による更新の通知 -->
+    <div class="toast" id="toast" hidden></div>
   </main>
 
 </div>
