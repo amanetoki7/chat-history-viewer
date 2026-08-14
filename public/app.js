@@ -373,7 +373,7 @@ const SCROLL_MARGIN = 400;
 const el = {
   q: $('#q'), scope: $('#scope'), sort: $('#sort'),
   from: $('#from'), to: $('#to'), favorite: $('#favorite'), archived: $('#archived'),
-  sources: $('#sources'), stats: $('#stats'),
+  sources: $('#source-filter'), stats: $('#stats'),
   list: $('#result-list'), count: $('#result-count'), took: $('#result-took'), more: $('#result-more'),
   updatePill: $('#update-pill'), toast: $('#toast'),
   reader: $('#reader'), conversation: $('#conversation'), readerEmpty: $('#reader-empty'),
@@ -448,29 +448,78 @@ function watchStateHtml(watcher) {
   return `<div class="watch-state"><span class="watch-dot"></span>変更を監視中${at}</div>`;
 }
 
+/** topbar 中央のソース絞り込み。広い画面はピルの横並び、狭い画面は「ソース」のリスト選択。 */
+function renderSourceFilter() {
+  // 再描画をまたいでモバイルのリストの開閉状態を保つ（選ぶたびに閉じない）
+  const wasOpen = Boolean(el.sources.querySelector('.select-pop:not([hidden])'));
+
+  const pills = state.allSources
+    .map(
+      (s) => `<button type="button" class="source-pill${state.sources.has(s.id) ? ' active' : ''}" data-id="${escapeHtml(s.id)}" aria-pressed="${state.sources.has(s.id)}">
+        ${sourceLogo(s.id, s, false)}
+        <span class="pill-label">${escapeHtml(s.label)}</span>
+        <span class="pill-count">${fmtInt(s.count)}</span>
+      </button>`
+    )
+    .join('');
+
+  const options = state.allSources
+    .map((s) => {
+      const sel = state.sources.has(s.id);
+      return `<button type="button" class="select-option" role="option" data-id="${escapeHtml(s.id)}" aria-selected="${sel}">
+        <span class="opt-check">${sel ? icon('check', 14) : ''}</span>
+        ${sourceLogo(s.id, s, false)}
+        <span class="opt-label">${escapeHtml(s.label)}</span>
+        <span class="pill-count">${fmtInt(s.count)}</span>
+      </button>`;
+    })
+    .join('');
+
+  el.sources.innerHTML = `
+    <div class="source-pills" role="group" aria-label="ソースで絞り込み">${pills}</div>
+    <div class="select-menu source-menu">
+      <button type="button" class="select-btn" aria-haspopup="listbox" aria-expanded="${wasOpen}">
+        <span class="select-current">ソース${state.sources.size ? `（${state.sources.size}）` : ''}</span>${icon('chevron-down', 14)}
+      </button>
+      <div class="select-pop" role="listbox" aria-label="ソースで絞り込み"${wasOpen ? '' : ' hidden'}>${options}</div>
+    </div>`;
+
+  const toggle = (id) => {
+    if (state.sources.has(id)) state.sources.delete(id);
+    else state.sources.add(id);
+    renderSourceFilter();
+    reload();
+  };
+
+  for (const btn of el.sources.querySelectorAll('.source-pill')) {
+    btn.addEventListener('click', () => toggle(btn.dataset.id));
+  }
+  for (const opt of el.sources.querySelectorAll('.select-option')) {
+    opt.addEventListener('click', () => toggle(opt.dataset.id));
+  }
+  const menuBtn = el.sources.querySelector('.select-btn');
+  const pop = el.sources.querySelector('.select-pop');
+  menuBtn.addEventListener('click', () => {
+    pop.hidden = !pop.hidden;
+    menuBtn.setAttribute('aria-expanded', String(!pop.hidden));
+  });
+}
+
+// モバイルのソースリストは、メニューの外を押したら閉じる
+document.addEventListener('pointerdown', (ev) => {
+  if (ev.target.closest('.source-menu')) return;
+  const pop = el.sources.querySelector('.select-pop:not([hidden])');
+  if (!pop) return;
+  pop.hidden = true;
+  el.sources.querySelector('.select-btn').setAttribute('aria-expanded', 'false');
+});
+
 async function loadStats() {
   const stats = await fetch('/api/stats').then((r) => r.json());
   state.allSources = stats.sources;
 
   // 監視による更新で描き直されるので、選択中のソースは state から復元する
-  el.sources.innerHTML = stats.sources
-    .map(
-      (s) => `<label class="source-item">
-        <input type="checkbox" value="${escapeHtml(s.id)}"${state.sources.has(s.id) ? ' checked' : ''}>
-        ${sourceLogo(s.id, s, false)}
-        <span class="source-name">${escapeHtml(s.label)}</span>
-        <span class="source-count">${fmtInt(s.count)}</span>
-      </label>`
-    )
-    .join('');
-
-  el.sources.querySelectorAll('input').forEach((input) =>
-    input.addEventListener('change', () => {
-      if (input.checked) state.sources.add(input.value);
-      else state.sources.delete(input.value);
-      reload();
-    })
-  );
+  renderSourceFilter();
 
   el.stats.innerHTML = `
     <div>会話 <b>${fmtInt(stats.conversations)}</b> 件 / 発言 <b>${fmtInt(stats.totalTurns)}</b> 件</div>
@@ -1532,7 +1581,7 @@ $('#btn-reset').addEventListener('click', () => {
   el.q.value = ''; el.from.value = ''; el.to.value = '';
   el.favorite.checked = false; el.archived.checked = true;
   el.scope.value = 'all'; el.sort.value = 'relevance';
-  el.sources.querySelectorAll('input').forEach((i) => (i.checked = false));
+  renderSourceFilter();
   updateSearchButton();
   reload();
 });

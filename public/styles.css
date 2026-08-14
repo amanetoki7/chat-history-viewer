@@ -277,17 +277,43 @@ html[data-theme="dark"] .src-logo[data-source="chatgpt"] { background-image: url
 .src-logo[data-source="google_ai_mode"] { background-image: url("images/Google_Gemini_icon_2025.svg"); }
 .src-logo[data-source="perplexity"] { background-image: url("images/perplexity-color.svg"); }
 
-.source-list { display: flex; flex-direction: column; gap: 2px; }
-.source-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 8px; margin: 0 -8px;
-  border-radius: 7px; cursor: pointer;
-  user-select: none;
+/* topbar 中央のソース絞り込み。広い画面はピルの横並び、
+   狭い画面は「ソース ˅」のリスト選択（設定の .select-* を共用）に切り替える */
+.source-filter { flex: 1 1 auto; display: flex; justify-content: center; min-width: 0; }
+.source-pills { display: flex; gap: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.source-pills::-webkit-scrollbar { display: none; }
+.source-pill {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim); font: inherit; font-size: 12px;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
 }
-.source-item:hover { background: var(--bg-hover); }
-.source-item input { accent-color: var(--accent); margin: 0; }
-.source-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.source-count { color: var(--text-faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+.source-pill:hover { background: var(--bg-hover); }
+.source-pill.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.pill-count { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.pill-count::before { content: "·"; margin-right: 4px; }
+.source-pill.active .pill-count { color: var(--accent); }
+
+/* 後方で定義される .select-menu 共通スタイルより詳細度を上げて上書きする */
+.source-filter .source-menu { display: none; margin-left: 0; }
+.source-menu .select-btn {
+  padding: 6px 10px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+.source-menu .select-btn:hover { background: var(--bg-hover); }
+.source-menu .select-pop { min-width: 220px; }
+.source-menu .opt-label { overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 900px) {
+  .source-pills { display: none; }
+  .source-filter .source-menu { display: block; }
+}
 
 .date-row { display: flex; align-items: center; gap: 6px; }
 .date-row input {

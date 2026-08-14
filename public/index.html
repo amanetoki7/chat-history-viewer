@@ -22,6 +22,9 @@
   <button class="icon-btn" id="btn-menu" title="サイドバーを開閉" aria-label="サイドバーを開閉" data-icon="menu-2" data-size="18"></button>
   <div class="brand"><span class="brand-mark" data-icon="messages" data-size="19"></span><span class="brand-text">AI Chat History</span></div>
 
+  <!-- ソース絞り込み。広い画面はピルの横並び、狭い画面は「ソース」リスト（中身は app.js が描く） -->
+  <nav class="source-filter" id="source-filter" aria-label="ソースで絞り込み"></nav>
+
   <div class="topbar-actions">
     <button class="icon-btn" id="btn-search" title="検索（/）" aria-label="検索" aria-haspopup="dialog" data-icon="search" data-size="18"></button>
     <select id="sort" title="並び順" aria-label="並び順">
@@ -38,11 +41,6 @@
 <div class="layout">
 
   <aside class="sidebar" id="sidebar">
-    <details class="panel" data-panel="sources" open>
-      <summary><h2>ソース</h2></summary>
-      <div id="sources" class="source-list"></div>
-    </details>
-
     <details class="panel" data-panel="dates" open>
       <summary><h2>期間</h2></summary>
       <div class="date-row">
