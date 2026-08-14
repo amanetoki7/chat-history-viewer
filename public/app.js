@@ -898,46 +898,80 @@ function renderSettingsTabs() {
       .join('');
 }
 
-/** 「一般」ペイン。テーマとチャットの日時の基準（プロバイダーに依らない設定）。 */
-function renderGeneralPane() {
-  const theme = themeSetting();
-  const themeOptions = [
-    { value: 'light', label: 'ライト' },
-    { value: 'dark', label: 'ダーク' },
-    { value: 'system', label: 'システムに従う' },
-  ];
-
-  el.settingsPane.innerHTML = `
-    <div class="settings-section-label">テーマ</div>
-    <div role="radiogroup" aria-label="テーマ">
-      ${themeOptions
+/** リスト選択（設定行の右側に置くドロップダウン）のマークアップ */
+function selectMenuHtml(id, labelId, options, current) {
+  const cur = options.find((o) => o.value === current);
+  return `<div class="select-menu" id="${id}">
+    <button type="button" class="select-btn" aria-haspopup="listbox" aria-labelledby="${labelId}" aria-expanded="false">
+      <span class="select-current">${cur.label}</span>${icon('chevron-down', 14)}
+    </button>
+    <div class="select-pop" role="listbox" aria-labelledby="${labelId}" hidden>
+      ${options
         .map(
-          (o) => `<label class="check"><input type="radio" name="theme" value="${o.value}"${o.value === theme ? ' checked' : ''}> ${o.label}</label>`
+          (o) => `<button type="button" class="select-option" role="option" data-value="${o.value}" aria-selected="${o.value === current}">
+          <span class="opt-label">${o.label}</span>
+          <span class="opt-check">${o.value === current ? icon('check', 14) : ''}</span>
+        </button>`
         )
         .join('')}
     </div>
-    <div class="settings-section-label">チャットの日時の基準</div>
-    <div role="radiogroup" aria-label="チャットの日時の基準">
-      <label class="check"><input type="radio" name="time-basis" value="last"${timeBasis === 'last' ? ' checked' : ''}> 最後のメッセージの時刻（多くの公式アプリと同じ並び）</label>
-      <label class="check"><input type="radio" name="time-basis" value="start"${timeBasis === 'start' ? ' checked' : ''}> チャットを開始した時刻</label>
-    </div>
-    <p class="settings-note">日時の基準は一覧の日付表示のほか、並び替えと期間の絞り込みにも使われます。</p>`;
+  </div>`;
+}
 
-  for (const input of el.settingsPane.querySelectorAll('input[name="theme"]')) {
-    input.addEventListener('change', () => {
-      if (input.checked) setThemeSetting(input.value);
-    });
+/** リスト選択の配線。ボタンで開閉し、項目を選ぶと onSelect(value) を呼ぶ */
+function wireSelectMenu(id, onSelect) {
+  const menu = $(`#${id}`);
+  const btn = menu.querySelector('.select-btn');
+  const pop = menu.querySelector('.select-pop');
+  btn.addEventListener('click', () => {
+    pop.hidden = !pop.hidden;
+    btn.setAttribute('aria-expanded', String(!pop.hidden));
+  });
+  for (const opt of pop.querySelectorAll('.select-option')) {
+    opt.addEventListener('click', () => onSelect(opt.dataset.value));
   }
+}
 
-  for (const input of el.settingsPane.querySelectorAll('input[name="time-basis"]')) {
-    input.addEventListener('change', () => {
-      if (!input.checked) return;
-      timeBasis = input.value;
+const THEME_OPTIONS = [
+  { value: 'system', label: 'システム' },
+  { value: 'dark', label: 'ダーク' },
+  { value: 'light', label: 'ライト' },
+];
+
+const TIME_BASIS_OPTIONS = [
+  { value: 'last', label: '最後のメッセージの時刻' },
+  { value: 'start', label: 'チャットを開始した時刻' },
+];
+
+/** 「一般」ペイン。テーマとチャットの日時の基準（プロバイダーに依らない設定）。 */
+function renderGeneralPane() {
+  el.settingsPane.innerHTML = `
+    <div class="settings-section-label">外観</div>
+    <div class="setting-row">
+      <label id="theme-label">テーマ</label>
+      ${selectMenuHtml('theme-select', 'theme-label', THEME_OPTIONS, themeSetting())}
+    </div>
+    <div class="settings-section-label">チャットの日時</div>
+    <div class="setting-row">
+      <label id="time-basis-label">日時の基準</label>
+      ${selectMenuHtml('time-basis-select', 'time-basis-label', TIME_BASIS_OPTIONS, timeBasis)}
+    </div>
+    <p class="settings-note">日時の基準は一覧の日付表示のほか、並び替えと期間の絞り込みにも使われます。「最後のメッセージの時刻」は多くの公式アプリと同じ並びです。</p>`;
+
+  wireSelectMenu('theme-select', (value) => {
+    setThemeSetting(value);
+    renderGeneralPane(); // 選択表示とチェックを描き直す（メニューも閉じる）
+  });
+
+  wireSelectMenu('time-basis-select', (value) => {
+    if (value !== timeBasis) {
+      timeBasis = value;
       localStorage.setItem(TIME_BASIS_KEY, timeBasis);
       reload(); // 並び順・日付表示を新しい基準で読み直す
       if (state.activeId) openConversation(state.activeId, null, { keepScroll: true });
-    });
-  }
+    }
+    renderGeneralPane();
+  });
 }
 
 function renderSettingsPane() {
@@ -1030,6 +1064,15 @@ el.settingsTabs.addEventListener('click', (ev) => {
   settingsSource = btn.dataset.id;
   renderSettingsTabs();
   renderSettingsPane();
+});
+
+// リスト選択（テーマなど）は、メニューの外を押したら閉じる
+el.settingsModal.addEventListener('pointerdown', (ev) => {
+  if (ev.target.closest('.select-menu')) return;
+  for (const pop of el.settingsModal.querySelectorAll('.select-pop:not([hidden])')) {
+    pop.hidden = true;
+    pop.closest('.select-menu').querySelector('.select-btn').setAttribute('aria-expanded', 'false');
+  }
 });
 
 /* ---------------------------------------------------------------- reader */
