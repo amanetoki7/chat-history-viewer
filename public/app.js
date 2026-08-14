@@ -1463,6 +1463,25 @@ function updateHitLabel() {
   if (label) label.textContent = `${hitIndex < 0 ? 0 : hitIndex + 1} / ${hitMarks.length}`;
 }
 
+/** ロゴから戻るホーム状態。検索語と開いている会話を捨て、URL のハッシュも消す。 */
+function goHome() {
+  convSeq++; // 読み込み中の会話があっても描画させない
+  closeActivity();
+  closeCitePop();
+  activeConv = null;
+  state.activeId = '';
+  el.conversation.hidden = true;
+  el.conversation.innerHTML = '';
+  el.readerEmpty.hidden = false;
+  document.body.classList.remove('reading');
+  document.body.classList.remove('menu-open');
+
+  state.q = '';
+  el.q.value = '';
+  updateSearchButton();
+  reload(); // writeHash() も呼ばれ、#q・#id が消える
+}
+
 function closeReader() {
   document.body.classList.remove('reading');
   document.body.classList.remove('menu-open');
@@ -1711,6 +1730,13 @@ citePop.addEventListener('click', (ev) => {
 el.reader.addEventListener('scroll', () => closeCitePop(), { passive: true });
 
 /* --------------------------------------------------------------- inputs */
+
+// ロゴを押したらホーム（検索語・会話・#id なし）へ。修飾キー付きは新しいタブに任せる
+$('#brand-home').addEventListener('click', (ev) => {
+  if (ev.ctrlKey || ev.metaKey || ev.shiftKey) return;
+  ev.preventDefault();
+  goHome();
+});
 
 el.q.addEventListener('input', debounce(() => {
   state.q = el.q.value.trim();
