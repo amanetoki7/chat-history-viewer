@@ -373,7 +373,7 @@ const SCROLL_MARGIN = 400;
 const el = {
   q: $('#q'), scope: $('#scope'), sort: $('#sort'),
   from: $('#from'), to: $('#to'), favorite: $('#favorite'), archived: $('#archived'),
-  sources: $('#source-filter'), stats: $('#stats'),
+  sources: $('#source-filter'),
   list: $('#result-list'), count: $('#result-count'), took: $('#result-took'), more: $('#result-more'),
   updatePill: $('#update-pill'), toast: $('#toast'),
   reader: $('#reader'), conversation: $('#conversation'), readerEmpty: $('#reader-empty'),
@@ -514,27 +514,19 @@ document.addEventListener('pointerdown', (ev) => {
   el.sources.querySelector('.select-btn').setAttribute('aria-expanded', 'false');
 });
 
+/** 最新の /api/stats。設定モーダルの「サーバー概要」ペインが描画に使う */
+let serverStats = null;
+
 async function loadStats() {
   const stats = await fetch('/api/stats').then((r) => r.json());
   state.allSources = stats.sources;
+  serverStats = stats;
 
   // 監視による更新で描き直されるので、選択中のソースは state から復元する
   renderSourceFilter();
 
-  el.stats.innerHTML = `
-    <div>会話 <b>${fmtInt(stats.conversations)}</b> 件 / 発言 <b>${fmtInt(stats.totalTurns)}</b> 件</div>
-    <div>本文 <b>${fmtInt(Math.round(stats.totalChars / 10000))}</b> 万文字（索引 ${(stats.indexBytes / 1048576).toFixed(0)} MB）</div>
-    <div>${fmtDate(stats.earliest)} 〜 ${fmtDate(stats.latest)}</div>
-    <div class="root">${escapeHtml(stats.root)}</div>
-    ${watchStateHtml(stats.watcher)}
-    <button class="btn-block" id="btn-reindex">索引を再構築</button>`;
-
-  $('#btn-reindex').addEventListener('click', async (ev) => {
-    ev.target.disabled = true;
-    ev.target.textContent = '再構築中…（コンソール参照）';
-    await fetch('/api/reindex', { method: 'POST' });
-    setTimeout(() => location.reload(), 4000);
-  });
+  // サーバー概要を開いたまま更新が来たら描き直す
+  if (isSettingsOpen() && settingsSource === STATS_TAB) renderSettingsPane();
 }
 
 /* --------------------------------------------------------------- search */
@@ -915,6 +907,8 @@ function readProviderDefaults(source) {
 
 /** プロバイダー ID と衝突しない「一般」タブの ID */
 const GENERAL_TAB = '__general';
+/** タブ列の一番下に離して置く「サーバー概要」タブの ID */
+const STATS_TAB = '__stats';
 
 let settingsSource = GENERAL_TAB; // 選択中のタブ
 
@@ -926,11 +920,16 @@ const isModified = (id) => Boolean(uiSettings[id] && Object.keys(uiSettings[id])
 
 function renderSettingsTabs() {
   const providers = settingsProviders();
-  if (settingsSource !== GENERAL_TAB && !providers.some((p) => p.id === settingsSource)) {
+  if (
+    settingsSource !== GENERAL_TAB &&
+    settingsSource !== STATS_TAB &&
+    !providers.some((p) => p.id === settingsSource)
+  ) {
     settingsSource = GENERAL_TAB;
   }
 
   const generalActive = settingsSource === GENERAL_TAB;
+  const statsActive = settingsSource === STATS_TAB;
   el.settingsTabs.innerHTML =
     `<button class="settings-tab${generalActive ? ' active' : ''}" data-id="${GENERAL_TAB}" role="tab" aria-selected="${generalActive}">
       <span class="tab-icon" aria-hidden="true">${icon('settings', 16)}</span>
@@ -944,7 +943,11 @@ function renderSettingsTabs() {
         ${isModified(p.id) ? '<span class="tab-dot" title="既定から変更あり"></span>' : ''}
       </button>`
       )
-      .join('');
+      .join('') +
+    `<button class="settings-tab tab-stats${statsActive ? ' active' : ''}" data-id="${STATS_TAB}" role="tab" aria-selected="${statsActive}">
+      <span class="tab-icon" aria-hidden="true">${icon('server', 16)}</span>
+      <span class="tab-label">サーバー概要</span>
+    </button>`;
 }
 
 /** リスト選択（設定行の右側に置くドロップダウン）のマークアップ */
@@ -1023,9 +1026,39 @@ function renderGeneralPane() {
   });
 }
 
+/** 「サーバー概要」ペイン。索引の統計・監視状態と再構築ボタン（旧サイドバーの統計）。 */
+function renderStatsPane() {
+  if (!serverStats) {
+    el.settingsPane.innerHTML = '<p class="settings-note">統計を読み込み中…</p>';
+    return;
+  }
+  const s = serverStats;
+  el.settingsPane.innerHTML = `
+    <div class="settings-section-label">サーバー概要</div>
+    <div class="server-stats">
+      <div>会話 <b>${fmtInt(s.conversations)}</b> 件 / 発言 <b>${fmtInt(s.totalTurns)}</b> 件</div>
+      <div>本文 <b>${fmtInt(Math.round(s.totalChars / 10000))}</b> 万文字（索引 ${(s.indexBytes / 1048576).toFixed(0)} MB）</div>
+      <div>${fmtDate(s.earliest)} 〜 ${fmtDate(s.latest)}</div>
+      <div class="root">${escapeHtml(s.root)}</div>
+      ${watchStateHtml(s.watcher)}
+    </div>
+    <button class="btn-block" id="btn-reindex">索引を再構築</button>`;
+
+  $('#btn-reindex').addEventListener('click', async (ev) => {
+    ev.target.disabled = true;
+    ev.target.textContent = '再構築中…（コンソール参照）';
+    await fetch('/api/reindex', { method: 'POST' });
+    setTimeout(() => location.reload(), 4000);
+  });
+}
+
 function renderSettingsPane() {
   if (settingsSource === GENERAL_TAB) {
     renderGeneralPane();
+    return;
+  }
+  if (settingsSource === STATS_TAB) {
+    renderStatsPane();
     return;
   }
 
