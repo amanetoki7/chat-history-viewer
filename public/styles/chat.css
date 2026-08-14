@@ -10,6 +10,34 @@
  * data-source の値は src/config.js の SOURCE_META のキーと同じ。
  */
 
+/*
+ * コードハイライトの配色。トークンの <span class="tok-*"> は code-highlight.js
+ * （CodeMirror/lezer）が出力する。既定は GitHub 風。プロバイダー CSS は
+ * .conversation[data-source="…"] { --tok-kw: …; } のように上書きする。
+ */
+:root {
+  --tok-fg: var(--text);
+  --tok-comment: #8b949e;
+  --tok-comment-style: normal;
+  --tok-kw: #ff7b72;
+  --tok-str: #a5d6ff;
+  --tok-num: #79c0ff;
+  --tok-var: #d2a8ff;
+  --tok-tag: #7ee787;
+  --tok-attr: #79c0ff;
+  --tok-invalid: #ffa198;
+}
+html[data-theme="light"] {
+  --tok-comment: #6a737d;
+  --tok-kw: #d73a49;
+  --tok-str: #032f62;
+  --tok-num: #005cc5;
+  --tok-var: #6f42c1;
+  --tok-tag: #22863a;
+  --tok-attr: #005cc5;
+  --tok-invalid: #cb2431;
+}
+
 .conversation {
   /* 背景（未指定ならアプリの地の色） */
   --chat-bg: var(--bg);
@@ -174,7 +202,21 @@
   background: var(--code-bg); border: 1px solid var(--code-border);
   border-radius: var(--code-radius); overflow-x: auto;
 }
-.md pre code { background: none; border: none; padding: 0; font-size: 12.5px; line-height: 1.6; }
+.md pre code { background: none; border: none; padding: 0; font-size: 12.5px; line-height: 1.6; color: var(--tok-fg); }
+
+/* コードハイライトのトークン配色（色は上の --tok-* 変数で決まる） */
+.md .tok-comment { color: var(--tok-comment); font-style: var(--tok-comment-style); }
+.md .tok-kw { color: var(--tok-kw); }
+.md .tok-str { color: var(--tok-str); }
+.md .tok-num { color: var(--tok-num); }
+.md .tok-var { color: var(--tok-var); }
+.md .tok-tag { color: var(--tok-tag); }
+.md .tok-attr { color: var(--tok-attr); }
+.md .tok-link { color: var(--tok-tag); text-decoration: underline; }
+.md .tok-invalid { color: var(--tok-invalid); }
+.md .tok-em { font-style: italic; }
+.md .tok-strong { font-weight: bold; }
+.md .tok-strike { text-decoration: line-through; }
 
 /* コードブロック右上のコピーボタン（枠は .codeblock、余白は pre から引き継ぐ） */
 .md .codeblock { position: relative; margin: .9em 0; }

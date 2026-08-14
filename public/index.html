@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Chat History Viewer</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236ea8fe' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10'/><path d='M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2'/></svg>">
-<link rel="stylesheet" href="/vendor/hljs/styles/github-dark.min.css" id="hljs-dark">
-<link rel="stylesheet" href="/vendor/hljs/styles/github.min.css" id="hljs-light" disabled>
 <link rel="stylesheet" href="/styles.css">
 <!-- チャット本文の描画：共通ベース → プロバイダー個別（後勝ち・data-source で切り替わる） -->
 <link rel="stylesheet" href="/styles/chat.css">
@@ -136,7 +134,36 @@
 </div>
 
 <script src="/vendor/markdown-it/markdown-it.min.js"></script>
-<script src="/vendor/hljs/highlight.min.js"></script>
+<!-- コードハイライト: CodeMirror (lezer)。import map で node_modules の ESM を解決する -->
+<script type="importmap">
+{
+  "imports": {
+    "@lezer/common": "/vendor/nm/@lezer/common/dist/index.js",
+    "@lezer/highlight": "/vendor/nm/@lezer/highlight/dist/index.js",
+    "@lezer/lr": "/vendor/nm/@lezer/lr/dist/index.js",
+    "@lezer/javascript": "/vendor/nm/@lezer/javascript/dist/index.js",
+    "@lezer/css": "/vendor/nm/@lezer/css/dist/index.js",
+    "@lezer/html": "/vendor/nm/@lezer/html/dist/index.js",
+    "@lezer/xml": "/vendor/nm/@lezer/xml/dist/index.js",
+    "@lezer/python": "/vendor/nm/@lezer/python/dist/index.js",
+    "@lezer/json": "/vendor/nm/@lezer/json/dist/index.js",
+    "@lezer/java": "/vendor/nm/@lezer/java/dist/index.js",
+    "@lezer/cpp": "/vendor/nm/@lezer/cpp/dist/index.js",
+    "@lezer/rust": "/vendor/nm/@lezer/rust/dist/index.js",
+    "@lezer/php": "/vendor/nm/@lezer/php/dist/index.js",
+    "@lezer/yaml": "/vendor/nm/@lezer/yaml/dist/index.js",
+    "@lezer/markdown": "/vendor/nm/@lezer/markdown/dist/index.js",
+    "@codemirror/language": "/vendor/nm/@codemirror/language/dist/index.js",
+    "@codemirror/state": "/vendor/nm/@codemirror/state/dist/index.js",
+    "@codemirror/view": "/vendor/nm/@codemirror/view/dist/index.js",
+    "@codemirror/legacy-modes/mode/": "/vendor/nm/@codemirror/legacy-modes/mode/",
+    "style-mod": "/vendor/nm/style-mod/src/style-mod.js",
+    "w3c-keyname": "/vendor/nm/w3c-keyname/index.js",
+    "crelt": "/vendor/nm/crelt/index.js",
+    "@marijn/find-cluster-break": "/vendor/nm/@marijn/find-cluster-break/src/index.js"
+  }
+}
+</script>
 <script src="/icons.js"></script>
 <script src="/app.js"></script>
 </body>

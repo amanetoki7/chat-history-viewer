@@ -1,24 +1,20 @@
-/* global markdownit, hljs */
+/* global markdownit */
 'use strict';
 
 /* ------------------------------------------------------------- markdown */
+
+// コードハイライトは CodeMirror (lezer) ベースの ES モジュール（code-highlight.js）。
+// 読み込み完了前に会話を描画しないよう、openConversation で await する
+const cmHighlightReady = import('/code-highlight.js').catch((e) => {
+  console.error('code-highlight.js の読み込みに失敗しました', e);
+});
 
 const md = window.markdownit({
   html: false,
   linkify: true,
   breaks: true,
   highlight(code, lang) {
-    if (lang && hljs.getLanguage(lang)) {
-      try {
-        let html = hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
-        // hljs は var(--x) の引数をトークン化しないため、定義側（.hljs-attr）と色が揃うよう補完する
-        if (['css', 'scss', 'less'].includes(lang.toLowerCase())) {
-          html = html.replace(/<\/span>\((--[A-Za-z0-9_-]+)/g, '</span>(<span class="hljs-attr">$1</span>');
-        }
-        return html;
-      } catch { /* fall through */ }
-    }
-    return '';
+    return (window.cmHighlight && window.cmHighlight(code, lang)) || '';
   },
 });
 
@@ -245,11 +241,9 @@ const el = {
 
 /* ----------------------------------------------------------------- boot */
 
-/** テーマを適用する。コードハイライトの配色も合わせて差し替える。 */
+/** テーマを適用する。コードハイライトの配色は CSS 変数（tok-*）が追従する。 */
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  $('#hljs-dark').disabled = theme !== 'dark';
-  $('#hljs-light').disabled = theme === 'dark';
   paintThemeIcon(theme);
 }
 
@@ -826,6 +820,7 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
   writeHash();
 
   const scrollTop = el.reader.scrollTop;
+  await cmHighlightReady;
   const conv = await fetch('/api/conversation?id=' + encodeURIComponent(relPath)).then((r) => r.json());
   if (conv.error) {
     if (keepScroll) showToast('この会話は索引から消えました', { iconName: 'trash', warn: true, ms: 0 });

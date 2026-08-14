@@ -311,7 +311,8 @@ app.get('/api/embeddings/status', (_req, res) => {
 /* --------------------------------------------------------------- static */
 
 app.use('/vendor/markdown-it', express.static(path.join(ROOT_DIR, 'node_modules/markdown-it/dist')));
-app.use('/vendor/hljs', express.static(path.join(ROOT_DIR, 'node_modules/@highlightjs/cdn-assets')));
+// CodeMirror (lezer) の ESM モジュール群。index.html の import map から参照される
+app.use('/vendor/nm', express.static(path.join(ROOT_DIR, 'node_modules')));
 app.use(express.static(path.join(ROOT_DIR, 'public'), { extensions: ['html'] }));
 
 /* ---------------------------------------------------------------- start */
