@@ -258,6 +258,7 @@ html[data-theme="dark"] .src-logo[data-source="chatgpt"] { background-image: url
   padding: 6px 10px;
   background: var(--bg-elev-2);
   border: 1px solid var(--border); border-radius: 8px;
+  white-space: nowrap;
 }
 .source-menu .select-btn:hover { background: var(--bg-hover); }
 .source-menu .select-pop { min-width: 220px; }
@@ -266,6 +267,8 @@ html[data-theme="dark"] .src-logo[data-source="chatgpt"] { background-image: url
 @media (max-width: 900px) {
   .source-pills { display: none; }
   .source-filter .source-menu { display: block; margin-left: 60px; }
+  /* 更新ピルが出ている間は左が詰まるので、右寄せの余白は無しにする */
+  .update-pill:not([hidden]) ~ .source-filter .source-menu { margin-left: 0; }
 }
 
 .check { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; user-select: none; }
