@@ -1378,19 +1378,33 @@ function isActivityOpen() {
   return !activityPanel.hidden;
 }
 
+/** 閉じるアニメーション（CSS の .closing、0.4s）を待ってから hidden にするためのタイマー */
+let activityCloseTimer = null;
+
 function closeActivity() {
-  activityPanel.hidden = true;
-  activityBackdrop.hidden = true;
+  if (activityPanel.hidden || activityPanel.classList.contains('closing')) return;
   activeReasoning = null;
+  activityPanel.classList.add('closing');
+  activityBackdrop.classList.add('closing');
+  activityCloseTimer = setTimeout(() => {
+    activityPanel.classList.remove('closing');
+    activityBackdrop.classList.remove('closing');
+    activityPanel.hidden = true;
+    activityBackdrop.hidden = true;
+  }, 400);
 }
 
 /** 本家のアクティビティパネル相当。思考の時系列と情報源の一覧を出す。
     開くリンクはトグルとして働き、同じ内容で開いていれば閉じる。 */
 function openActivity(r) {
-  if (isActivityOpen() && activeReasoning === r) {
+  if (isActivityOpen() && !activityPanel.classList.contains('closing') && activeReasoning === r) {
     closeActivity();
     return;
   }
+  // 閉じるアニメーションの途中でも、開き直しはすぐに切り替える
+  clearTimeout(activityCloseTimer);
+  activityPanel.classList.remove('closing');
+  activityBackdrop.classList.remove('closing');
   activeReasoning = r;
   const dur = fmtThinkDuration(r.durationSec);
   $('#activity-title').innerHTML =

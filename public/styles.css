@@ -609,17 +609,26 @@ kbd {
   width: 14px; height: 14px; border-radius: 3px;
 }
 
-/* 本文（.turns）の右隣の列としてインライン展開する。開くと 1fr の本文が狭まる */
+/* 本文（.turns）の右隣の列としてインライン展開する。開くと 1fr の本文が狭まる。
+   開閉はどちらも幅をゆっくり伸縮させる（閉じは .closing を JS が付け、終了後に hidden にする） */
 .activity-panel {
   width: min(400px, 38vw);
   min-height: 0;
   display: flex; flex-direction: column;
+  overflow: hidden;
   background: var(--bg-elev);
   border-left: 1px solid var(--border);
-  animation: activity-in .16s ease;
+  animation: activity-in .4s ease;
 }
-@keyframes activity-in { from { transform: translateX(14px); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .activity-panel { animation: none; } }
+/* 幅アニメーション中に本文が再折返ししないよう、中身は最終幅で固定して切り抜く */
+.activity-panel > .activity-head,
+.activity-panel > .activity-body { width: min(400px, 38vw); }
+.activity-panel.closing { animation: activity-out .4s ease forwards; }
+@keyframes activity-in { from { width: 0; opacity: 0; } }
+@keyframes activity-out { to { width: 0; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .activity-panel, .activity-panel.closing, .activity-backdrop { animation: none; }
+}
 
 /* 狭い画面ではモーダルウインドウとして中央に出す（背景タップ・Esc・×で閉じる） */
 .activity-backdrop { display: none; }
@@ -628,7 +637,9 @@ kbd {
     display: block;
     position: fixed; inset: 0; z-index: 54;
     background: #0007;
+    animation: activity-fade-in .4s ease;
   }
+  .activity-backdrop.closing { animation: activity-fade-out .4s ease forwards; }
   .activity-panel {
     position: fixed; inset: 7vh 12px auto 12px; margin: 0 auto; z-index: 55;
     width: min(520px, 100%);
@@ -636,9 +647,17 @@ kbd {
     border: 1px solid var(--border);
     border-radius: 14px;
     box-shadow: var(--shadow);
-    animation: search-pop .12s ease-out;
+    animation: activity-modal-in .4s ease;
   }
+  /* モーダルでは幅は固定なので、中身の幅固定は解除する */
+  .activity-panel > .activity-head,
+  .activity-panel > .activity-body { width: auto; }
+  .activity-panel.closing { animation: activity-modal-out .4s ease forwards; }
 }
+@keyframes activity-modal-in { from { opacity: 0; transform: translateY(-10px); } }
+@keyframes activity-modal-out { to { opacity: 0; transform: translateY(-10px); } }
+@keyframes activity-fade-in { from { opacity: 0; } }
+@keyframes activity-fade-out { to { opacity: 0; } }
 
 .activity-head {
   display: flex; align-items: center; gap: 8px;
