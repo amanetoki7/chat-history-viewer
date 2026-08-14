@@ -24,11 +24,6 @@
 
   <div class="topbar-actions">
     <button class="icon-btn" id="btn-search" title="検索（/）" aria-label="検索" aria-haspopup="dialog" data-icon="search" data-size="18"></button>
-    <select id="scope" title="検索対象" aria-label="検索対象">
-      <option value="all">全文</option>
-      <option value="user">自分の発言</option>
-      <option value="assistant">AIの回答</option>
-    </select>
     <select id="sort" title="並び順" aria-label="並び順">
       <option value="relevance">関連度</option>
       <option value="newest">新しい順</option>
@@ -120,6 +115,11 @@
       <span class="search-icon" aria-hidden="true" data-icon="search" data-size="16"></span>
       <input id="q" type="search" placeholder="全会話を検索  （&quot;完全一致&quot; / -除外 が使えます）" autocomplete="off" spellcheck="false">
       <span class="search-hint" id="search-hint"></span>
+      <select id="scope" class="search-scope" title="検索対象" aria-label="検索対象">
+        <option value="all">全文</option>
+        <option value="user">自分の発言</option>
+        <option value="assistant">AIの回答</option>
+      </select>
       <button class="icon-btn search-close" id="search-close" title="閉じる（Esc）" aria-label="閉じる" data-icon="x" data-size="17"></button>
     </div>
     <div class="search-body">

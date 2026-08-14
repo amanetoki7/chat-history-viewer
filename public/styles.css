@@ -159,6 +159,8 @@ body {
   font-size: 11px; color: var(--text-faint);
   pointer-events: none; white-space: nowrap;
 }
+/* 検索対象（全文 / 自分の発言 / AIの回答）。閉じるボタンの左に置く */
+.search-scope { flex: 0 0 auto; padding: 6px 6px; font-size: 12px; }
 .search-close { flex: 0 0 auto; }
 
 .search-body { overflow-y: auto; padding: 6px 0 8px; }
