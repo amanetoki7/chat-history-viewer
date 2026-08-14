@@ -1682,7 +1682,9 @@ let pendingUpdates = 0;
 
 function showUpdatePill(count) {
   pendingUpdates += count;
-  el.updatePill.innerHTML = icon('refresh', 12) + (pendingUpdates ? `${fmtInt(pendingUpdates)} 件の更新` : '更新があります');
+  el.updatePill.innerHTML = icon('refresh', 12) + (pendingUpdates
+    ? `${fmtInt(pendingUpdates)}<span class="pill-text">件の更新</span>`
+    : '<span class="pill-text">更新があります</span>');
   el.updatePill.hidden = false;
 }
 

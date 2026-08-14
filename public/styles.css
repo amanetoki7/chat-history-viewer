@@ -385,10 +385,12 @@ mark { background: var(--mark-bg); color: var(--mark-text); border-radius: 2px; 
 
 /* ------------------------------------------- 更新の即時反映（ファイル監視） */
 
-/* 一覧をその場で差し替えられない状況（スクロール中・検索中）で出す */
+/* 一覧をその場で差し替えられない状況（スクロール中・検索中）で出す。
+   topbar のブランドとソース絞り込みの間（左寄せ）に置く */
 .update-pill {
-  margin-left: 8px;
+  flex: none;
   display: inline-flex; align-items: center; gap: 4px;
+  white-space: nowrap;
   padding: 2px 9px;
   border: 1px solid var(--accent);
   border-radius: 999px;
@@ -400,6 +402,10 @@ mark { background: var(--mark-bg); color: var(--mark-text); border-radius: 2px; 
 }
 .update-pill:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 @keyframes pill-pop { from { opacity: 0; transform: translateY(-4px); } }
+/* 狭い画面は文言を省き、更新マークと件数だけにする */
+@media (max-width: 900px) {
+  .update-pill .pill-text { display: none; }
+}
 
 /* 監視による更新の通知 */
 .toast {
