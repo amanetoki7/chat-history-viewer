@@ -97,7 +97,8 @@ html[data-theme="light"] {
 
 .turns {
   padding: var(--chat-padding);
-  max-width: var(--chat-max-width);
+  /* 幅の上限は設けず、リーダーの残り横幅全体を使う */
+  max-width: none;
   font-family: var(--chat-font);
   font-size: var(--chat-font-size);
   line-height: var(--chat-line-height);

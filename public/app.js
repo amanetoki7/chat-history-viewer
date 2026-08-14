@@ -827,7 +827,6 @@ const UI_SETTINGS_KEY = 'chv-provider-ui';
 const UI_FIELDS = [
   { key: 'fontSize', label: '文字サイズ', cssVar: '--chat-font-size', min: 12, max: 18, step: 0.5, unit: 'px' },
   { key: 'lineHeight', label: '行間', cssVar: '--chat-line-height', min: 1.4, max: 2.2, step: 0.05, unit: '' },
-  { key: 'maxWidth', label: '本文の最大幅', cssVar: '--chat-max-width', min: 640, max: 1400, step: 20, unit: 'px' },
   { key: 'bubbleWidth', label: '自分の吹き出し幅', cssVar: '--user-bubble-max-width', min: 40, max: 100, step: 2, unit: '%' },
 ];
 
