@@ -196,7 +196,7 @@ export async function buildSnippets(index, hits, terms, { perHit = 3, before = 4
   const results = [];
   for (const hit of hits) {
     const entry = hit.entry;
-    const item = { ...entry, snippets: [] };
+    const item = { ...entry, snippets: [], score: hit.score || 0 };
     delete item.blobStart;
     delete item.blobLength;
     delete item.segStart;

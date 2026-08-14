@@ -192,6 +192,36 @@ html[data-theme="light"] {
   border-left: 3px solid var(--chat-quote-border); color: var(--chat-quote-color);
 }
 .md a { color: var(--chat-link-color); }
+
+/* 外部リンクのチップ表示（favicon＋ラベル。app.js の link_open レンダラーが生成） */
+.md a.link-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  max-width: 100%;
+  margin: 0 1px;
+  padding: 1px 10px 1px 7px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: .82em;
+  line-height: 1.6;
+  text-decoration: none;
+  color: var(--text-dim);
+  vertical-align: -0.32em;
+}
+.md a.link-chip:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--chat-link-color);
+}
+.md a.link-chip .chip-ico {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none; width: 14px; height: 14px;
+  color: var(--text-faint);
+}
+.md a.link-chip .chip-ico img { width: 14px; height: 14px; border-radius: 3px; }
+.md a.link-chip .chip-label {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .md code {
   font-family: var(--code-font); font-size: .89em;
   background: var(--code-bg); border: 1px solid var(--border-soft);

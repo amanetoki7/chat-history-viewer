@@ -349,6 +349,12 @@ html[data-theme="dark"] .date-row input::-webkit-calendar-picker-indicator { fil
   color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* 検索時のみ表示される関連度スコア */
+.ri-score {
+  flex: 0 0 auto;
+  font-size: 10.5px; color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
 .ri-star { display: inline-flex; color: #f5b301; }
 .ri-meta {
   display: flex; align-items: center; gap: 8px;

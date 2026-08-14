@@ -37,6 +37,42 @@ for (const rule of ['fence', 'code_block']) {
   };
 }
 
+/* 本文中の外部リンク（http/https）を favicon 付きのチップとして描画する。
+ * favicon はサードパーティ API を経由せず、リンク先サイトの /favicon.ico を直接読む。
+ * 読み込めるまでは world アイコンを表示し、成功したら favicon に置き換える */
+const baseLinkOpen =
+  md.renderer.rules.link_open ?? ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options));
+
+md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+  const token = tokens[idx];
+  const href = token.attrGet('href') || '';
+  const chip = /^https?:\/\//i.test(href);
+  (env.linkChips ??= []).push(chip);
+  if (!chip) return baseLinkOpen(tokens, idx, options, env, self);
+
+  token.attrJoin('class', 'link-chip');
+  token.attrSet('target', '_blank');
+  token.attrSet('rel', 'noopener');
+
+  const url = new URL(href);
+  // linkify による自動リンクはラベルが URL そのままで長いので、ホスト名に短縮する
+  const next = tokens[idx + 1];
+  if (token.markup === 'linkify' && next?.type === 'text') next.content = url.hostname;
+
+  const fav =
+    `<img src="${escapeHtml(url.origin)}/favicon.ico" alt="" loading="lazy" style="display:none"` +
+    ` onload="this.style.display='';this.previousElementSibling?.remove()" onerror="this.remove()">`;
+  return (
+    baseLinkOpen(tokens, idx, options, env, self) +
+    `<span class="chip-ico">${icon('world', 13)}${fav}</span><span class="chip-label">`
+  );
+};
+
+md.renderer.rules.link_close = (tokens, idx, options, env, self) => {
+  const closing = self.renderToken(tokens, idx, options);
+  return env.linkChips?.pop() ? `</span>${closing}` : closing;
+};
+
 const ARTIFACT_LANG = {
   'text/html': 'html',
   'application/vnd.ant.code': '',
@@ -459,6 +495,7 @@ function renderItems(items) {
       <div class="ri-head">
         ${sourceLogo(item.source, meta)}
         <span class="ri-title">${highlightText(item.title, state.terms)}</span>
+        ${state.terms.length ? `<span class="ri-score" title="検索スコア">${fmtInt(item.score || 0)}</span>` : ''}
         ${item.favorite ? `<span class="ri-star" title="お気に入り">${icon('star-filled', 13)}</span>` : ''}
       </div>
       <div class="ri-meta">
