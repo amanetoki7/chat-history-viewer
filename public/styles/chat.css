@@ -191,6 +191,31 @@
 .md .code-copy:hover { background: var(--bg-hover); color: var(--text); }
 .md .code-copy.done { color: var(--chat-link-color); opacity: 1; }
 @media (hover: none) { .md .code-copy { opacity: 1; } }
+
+/* 言語名ヘッダー（フェンスに言語指定がある場合）。pre の上に連結して1枚の枠に見せる */
+.md .codeblock-head {
+  display: flex; align-items: center;
+  padding: 6px 8px 6px 14px;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border); border-bottom: none;
+  border-radius: var(--code-radius) var(--code-radius) 0 0;
+  font-size: 11px; font-weight: 650; color: var(--text-dim);
+}
+.md .codeblock-lang {
+  display: inline-flex; align-items: center; gap: 6px;
+  text-transform: uppercase; letter-spacing: .03em;
+}
+.md .codeblock.has-lang pre {
+  border-top: none;
+  border-top-left-radius: 0; border-top-right-radius: 0;
+  padding-top: 4px;
+}
+/* ヘッダー内ではボタンを常時表示し、右端に寄せる */
+.md .codeblock-head .code-copy {
+  position: static; margin-left: auto;
+  opacity: 1; background: transparent; border: none;
+  width: 26px; height: 26px;
+}
 .md table {
   border-collapse: collapse; margin: .9em 0;
   display: block; overflow-x: auto; max-width: 100%;

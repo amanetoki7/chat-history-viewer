@@ -17,12 +17,22 @@ const md = window.markdownit({
   },
 });
 
-/* コードブロックを .codeblock で包み、右上にコピーボタンを重ねる */
+/* コードブロックを .codeblock で包み、言語名ヘッダーとコピーボタンを付ける */
+const copyBtn = () =>
+  `<button class="code-copy" type="button" title="コピー" aria-label="コードをコピー">${icon('copy', 15)}</button>`;
+
 for (const rule of ['fence', 'code_block']) {
   const base = md.renderer.rules[rule] ?? ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options));
-  md.renderer.rules[rule] = (tokens, idx, options, env, self) =>
-    `<div class="codeblock">${base(tokens, idx, options, env, self)}` +
-    `<button class="code-copy" type="button" title="コピー" aria-label="コードをコピー">${icon('copy', 15)}</button></div>`;
+  md.renderer.rules[rule] = (tokens, idx, options, env, self) => {
+    const body = base(tokens, idx, options, env, self);
+    const lang = rule === 'fence' ? md.utils.unescapeAll(tokens[idx].info || '').trim().split(/\s+/)[0] : '';
+    if (!lang) return `<div class="codeblock">${body}${copyBtn()}</div>`;
+    return (
+      `<div class="codeblock has-lang"><div class="codeblock-head">` +
+      `<span class="codeblock-lang">${icon('code', 13)}<span>${escapeHtml(lang)}</span></span>${copyBtn()}` +
+      `</div>${body}</div>`
+    );
+  };
 }
 
 const ARTIFACT_LANG = {
