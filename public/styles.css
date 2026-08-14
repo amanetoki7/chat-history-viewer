@@ -228,7 +228,7 @@ select:hover, .icon-btn:hover, .btn-block:hover, .chip:hover { background: var(-
   /* font-weight: 650; */
   letter-spacing: .08em;
   text-transform: uppercase;
-  color: #0d0d0d;
+  color: var(--text);
 }
 
 /* 折りたたみパネル（details/summary）。見出し行クリックで開閉する */
@@ -346,7 +346,7 @@ html[data-theme="dark"] .date-row input::-webkit-calendar-picker-indicator { fil
   flex: 1 1 auto; min-width: 0;
   /* font-weight: 600; */
   font-size: 14px;
-  color: #0d0d0d;
+  color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ri-star { display: inline-flex; color: #f5b301; }
