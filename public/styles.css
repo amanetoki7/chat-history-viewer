@@ -621,12 +621,22 @@ kbd {
 @keyframes activity-in { from { transform: translateX(14px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .activity-panel { animation: none; } }
 
-/* 狭い画面は従来どおり右端のオーバーレイ */
+/* 狭い画面ではモーダルウインドウとして中央に出す（背景タップ・Esc・×で閉じる） */
+.activity-backdrop { display: none; }
 @media (max-width: 900px) {
+  .activity-backdrop:not([hidden]) {
+    display: block;
+    position: fixed; inset: 0; z-index: 54;
+    background: #0007;
+  }
   .activity-panel {
-    position: fixed; top: 0; right: 0; bottom: 0; z-index: 55;
-    width: min(400px, 94vw);
+    position: fixed; inset: 7vh 12px auto 12px; margin: 0 auto; z-index: 55;
+    width: min(520px, 100%);
+    max-height: 84vh;
+    border: 1px solid var(--border);
+    border-radius: 14px;
     box-shadow: var(--shadow);
+    animation: search-pop .12s ease-out;
   }
 }
 

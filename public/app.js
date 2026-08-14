@@ -1369,6 +1369,10 @@ function closeReader() {
 const ACTIVITY_CHIP_MAX = 3;
 
 const activityPanel = $('#activity-panel');
+const activityBackdrop = $('#activity-backdrop');
+
+/** 表示中の思考。同じリンクをもう一度押したときの「閉じる」判定に使う */
+let activeReasoning = null;
 
 function isActivityOpen() {
   return !activityPanel.hidden;
@@ -1376,15 +1380,24 @@ function isActivityOpen() {
 
 function closeActivity() {
   activityPanel.hidden = true;
+  activityBackdrop.hidden = true;
+  activeReasoning = null;
 }
 
-/** 本家のアクティビティパネル相当。思考の時系列と情報源の一覧を出す。 */
+/** 本家のアクティビティパネル相当。思考の時系列と情報源の一覧を出す。
+    開くリンクはトグルとして働き、同じ内容で開いていれば閉じる。 */
 function openActivity(r) {
+  if (isActivityOpen() && activeReasoning === r) {
+    closeActivity();
+    return;
+  }
+  activeReasoning = r;
   const dur = fmtThinkDuration(r.durationSec);
   $('#activity-title').innerHTML =
     'アクティビティ' + (dur ? `<span class="activity-duration"> · ${escapeHtml(dur)}</span>` : '');
   $('#activity-body').innerHTML = activityHtml(r);
   activityPanel.hidden = false;
+  activityBackdrop.hidden = false; // 背景はモバイルのモーダル表示時だけ CSS で見える
   $('#activity-body').scrollTop = 0;
 }
 
@@ -1450,6 +1463,7 @@ function activityHtml(r) {
 }
 
 $('#activity-close').addEventListener('click', closeActivity);
+$('#activity-backdrop').addEventListener('click', closeActivity);
 
 // 「あと N 個」⇔「表示を減らす」でサイトチップの一覧を開閉する
 $('#activity-body').addEventListener('click', (ev) => {
