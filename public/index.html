@@ -19,7 +19,7 @@
 <body>
 
 <header class="topbar">
-  <button class="icon-btn" id="btn-menu" title="サイドバーを開閉" aria-label="サイドバーを開閉" data-icon="menu-2" data-size="18"></button>
+  <button class="icon-btn" id="btn-menu" title="一覧を開閉" aria-label="一覧を開閉" data-icon="menu-2" data-size="18"></button>
   <div class="brand"><span class="brand-mark" data-icon="messages" data-size="19"></span><span class="brand-text">AI Chat History</span></div>
 
   <!-- ソース絞り込み。広い画面はピルの横並び、狭い画面は「ソース」リスト（中身は app.js が描く） -->
@@ -39,30 +39,6 @@
 </header>
 
 <div class="layout">
-
-  <aside class="sidebar" id="sidebar">
-    <details class="panel" data-panel="dates" open>
-      <summary><h2>期間</h2></summary>
-      <div class="date-row">
-        <input type="date" id="from" aria-label="開始日">
-        <span class="tilde">〜</span>
-        <input type="date" id="to" aria-label="終了日">
-      </div>
-      <div class="chip-row" id="quick-dates">
-        <button class="chip" data-days="7">1週間</button>
-        <button class="chip" data-days="30">1か月</button>
-        <button class="chip" data-days="365">1年</button>
-        <button class="chip" data-days="0">全期間</button>
-      </div>
-    </details>
-
-    <details class="panel" data-panel="misc" open>
-      <summary><h2>その他</h2></summary>
-      <label class="check"><input type="checkbox" id="favorite"> お気に入りのみ</label>
-      <label class="check"><input type="checkbox" id="archived" checked> アーカイブを含む</label>
-      <button class="btn-block" id="btn-reset">条件をリセット</button>
-    </details>
-  </aside>
 
   <section class="results" id="results-pane">
     <div class="results-head">
@@ -87,8 +63,6 @@
   </main>
 
 </div>
-
-<div class="scrim" id="scrim"></div>
 
 <!-- 思考アクティビティ。ChatGPT（Native）の「考えました」内の
      「N件のウェブサイトを検索しました」から開く別パネル（中身は app.js が描く） -->

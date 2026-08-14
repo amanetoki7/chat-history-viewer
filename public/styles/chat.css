@@ -376,7 +376,7 @@ details.reasoning > .block-body {
   cursor: pointer;
   transition: background .12s, color .12s;
 }
-.reasoning-web:hover { background: var(--bg-hover); color: var(--text); }
+/* .reasoning-web:hover { background: var(--bg-hover); color: var(--text); } */
 
 /* ChatGPT（Native）の記事カード（nav_list）。本家の回答末尾カルーセルに相当する横並びカード */
 .md .nav-cards {

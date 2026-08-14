@@ -372,7 +372,6 @@ const SCROLL_MARGIN = 400;
 
 const el = {
   q: $('#q'), scope: $('#scope'), sort: $('#sort'),
-  from: $('#from'), to: $('#to'), favorite: $('#favorite'), archived: $('#archived'),
   sources: $('#source-filter'),
   list: $('#result-list'), count: $('#result-count'), took: $('#result-took'), more: $('#result-more'),
   updatePill: $('#update-pill'), toast: $('#toast'),
@@ -414,29 +413,19 @@ function setThemeSetting(value) {
 applyTheme();
 systemDarkMq.addEventListener('change', applyTheme);
 
-// サイドバーの開閉。狭い画面はオーバーレイ、広い画面は端に折りたたむ（状態を記憶）
+// 一覧ペインの開閉。広い画面は端に折りたたむ（状態を記憶）。
+// 狭い画面は一覧⇄本文の切り替えなので、本文から一覧へ戻るボタンとして働く。
 const narrowMq = window.matchMedia('(max-width: 900px)');
-if (localStorage.getItem('chv-sidebar') === 'collapsed') document.body.classList.add('sidebar-collapsed');
+if (localStorage.getItem('chv-results') === 'collapsed') document.body.classList.add('results-collapsed');
 $('#btn-menu').addEventListener('click', () => {
   if (narrowMq.matches) {
-    document.body.classList.toggle('menu-open');
+    document.body.classList.remove('reading');
     return;
   }
-  const collapsed = document.body.classList.toggle('sidebar-collapsed');
-  if (collapsed) localStorage.setItem('chv-sidebar', 'collapsed');
-  else localStorage.removeItem('chv-sidebar');
+  const collapsed = document.body.classList.toggle('results-collapsed');
+  if (collapsed) localStorage.setItem('chv-results', 'collapsed');
+  else localStorage.removeItem('chv-results');
 });
-$('#scrim').addEventListener('click', () => document.body.classList.remove('menu-open'));
-
-// サイドバーの折りたたみ状態を記憶する（閉じたパネルだけ保存）
-for (const panel of document.querySelectorAll('details.panel[data-panel]')) {
-  const key = `chv-panel-${panel.dataset.panel}`;
-  if (localStorage.getItem(key) === 'closed') panel.open = false;
-  panel.addEventListener('toggle', () => {
-    if (panel.open) localStorage.removeItem(key);
-    else localStorage.setItem(key, 'closed');
-  });
-}
 
 /** ファイル監視の状態表示（緑=監視中 / 灰=オフ / 赤=停止中） */
 function watchStateHtml(watcher) {
@@ -1587,37 +1576,6 @@ el.q.addEventListener('input', debounce(() => {
 
 el.scope.addEventListener('change', () => { state.scope = el.scope.value; reload(); });
 el.sort.addEventListener('change', () => { state.sort = el.sort.value; reload(); });
-el.from.addEventListener('change', () => { state.from = el.from.value; reload(); });
-el.to.addEventListener('change', () => { state.to = el.to.value; reload(); });
-el.favorite.addEventListener('change', () => { state.favorite = el.favorite.checked; reload(); });
-el.archived.addEventListener('change', () => { state.archived = el.archived.checked; reload(); });
-
-$('#quick-dates').addEventListener('click', (ev) => {
-  const btn = ev.target.closest('[data-days]');
-  if (!btn) return;
-  const days = Number(btn.dataset.days);
-  if (!days) {
-    state.from = state.to = '';
-  } else {
-    const since = new Date(Date.now() - days * 86400000);
-    state.from = since.toISOString().slice(0, 10);
-    state.to = '';
-  }
-  el.from.value = state.from;
-  el.to.value = state.to;
-  reload();
-});
-
-$('#btn-reset').addEventListener('click', () => {
-  state.q = ''; state.sources.clear(); state.from = ''; state.to = '';
-  state.favorite = false; state.archived = true; state.scope = 'all'; state.sort = 'relevance';
-  el.q.value = ''; el.from.value = ''; el.to.value = '';
-  el.favorite.checked = false; el.archived.checked = true;
-  el.scope.value = 'all'; el.sort.value = 'relevance';
-  renderSourceFilter();
-  updateSearchButton();
-  reload();
-});
 
 document.addEventListener('keydown', (ev) => {
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName);
