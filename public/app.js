@@ -237,7 +237,18 @@ $('#btn-theme').addEventListener('click', () => {
   localStorage.setItem('chv-theme', next);
 });
 
-$('#btn-menu').addEventListener('click', () => document.body.classList.toggle('menu-open'));
+// サイドバーの開閉。狭い画面はオーバーレイ、広い画面は端に折りたたむ（状態を記憶）
+const narrowMq = window.matchMedia('(max-width: 900px)');
+if (localStorage.getItem('chv-sidebar') === 'collapsed') document.body.classList.add('sidebar-collapsed');
+$('#btn-menu').addEventListener('click', () => {
+  if (narrowMq.matches) {
+    document.body.classList.toggle('menu-open');
+    return;
+  }
+  const collapsed = document.body.classList.toggle('sidebar-collapsed');
+  if (collapsed) localStorage.setItem('chv-sidebar', 'collapsed');
+  else localStorage.removeItem('chv-sidebar');
+});
 $('#scrim').addEventListener('click', () => document.body.classList.remove('menu-open'));
 
 // サイドバーの折りたたみ状態を記憶する（閉じたパネルだけ保存）

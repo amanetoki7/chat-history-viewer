@@ -196,7 +196,7 @@ select:hover, .icon-btn:hover, .btn-block:hover, .chip:hover { background: var(-
 .layout {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 236px minmax(300px, 400px) 1fr;
+  grid-template-columns: var(--sidebar-w, 236px) minmax(300px, 400px) 1fr;
   min-height: 0;
 }
 
@@ -207,6 +207,18 @@ select:hover, .icon-btn:hover, .btn-block:hover, .chip:hover { background: var(-
   background: var(--bg-elev);
   overflow-y: auto;
   padding: 4px 0 24px;
+}
+
+/* 端への折りたたみ（広い画面のみ。狭い画面はオーバーレイ開閉なので対象外） */
+@media (min-width: 901px) {
+  .layout { transition: grid-template-columns .18s ease; }
+  .sidebar {
+    min-width: 0;
+    overflow-x: hidden;
+    transition: opacity .18s ease, visibility .18s;
+  }
+  body.sidebar-collapsed { --sidebar-w: 0px; }
+  body.sidebar-collapsed .sidebar { opacity: 0; visibility: hidden; border-right: none; }
 }
 
 .panel { padding: 14px 16px; border-bottom: 1px solid var(--border-soft); }
@@ -475,15 +487,13 @@ kbd {
 /* -------------------------------------------------------------- narrow */
 
 .scrim { display: none; }
-.only-narrow { display: none; }
 
 @media (max-width: 1180px) {
-  .layout { grid-template-columns: 210px minmax(280px, 340px) 1fr; }
+  .layout { grid-template-columns: var(--sidebar-w, 210px) minmax(280px, 340px) 1fr; }
   .conv-head { padding: 12px 20px 10px; }
 }
 
 @media (max-width: 900px) {
-  .only-narrow { display: grid; }
   .layout { grid-template-columns: minmax(0, 1fr); position: relative; }
   .sidebar {
     position: absolute; inset: 0 auto 0 0; width: 262px; z-index: 25;
