@@ -324,6 +324,9 @@ app.get('/api/embeddings/status', (_req, res) => {
 
 /* --------------------------------------------------------------- static */
 
+// 旧「履歴に質問」ページ。モーダルに統合したためトップへ戻す（ブックマーク対策）
+app.get('/ask', (_req, res) => res.redirect('/'));
+
 app.use('/vendor/markdown-it', express.static(path.join(ROOT_DIR, 'node_modules/markdown-it/dist')));
 // CodeMirror (lezer) の ESM モジュール群。index.html の import map から参照される
 app.use('/vendor/nm', express.static(path.join(ROOT_DIR, 'node_modules')));

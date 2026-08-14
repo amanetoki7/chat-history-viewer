@@ -57,7 +57,7 @@ npm run reindex                                      # 索引を強制的に作�
 
 ### 履歴に質問（RAG）と Deep リサーチ
 
-`/ask.html` では、ローカルの LM Studio（OpenAI 互換 API, 既定 `http://localhost:1234`）を使って
+トップバーの ✨ ボタンから開くモーダルで、ローカルの LM Studio（OpenAI 互換 API, 既定 `http://localhost:1234`）を使って
 チャット履歴全体へ自然言語で質問できる。履歴は一切外部へ送信しない。
 
 - **通常回答** … クエリ立案 → 全文検索＋意味検索（埋め込み） → 出典番号つき回答。数十秒
@@ -133,6 +133,7 @@ public/             フロントエンド（依存フレームワークなし）
   icons.js          アイコン定義（Tabler Icons outline のインライン SVG）
   styles.css        アプリの外枠（トップバー・サイドバー・一覧・リーダーの枠）
   styles/chat.css   チャット本文の描画（共通ベース／変数の定義元）
+  styles/ask.css    「履歴に質問」モーダルのスタイル
   styles/providers/ プロバイダーごとの描画スタイル（chatgpt.css / claude.css …）
 ```
 

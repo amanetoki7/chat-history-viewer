@@ -1,33 +1,17 @@
-/* 履歴に質問 — チャット UI。/api/ask (SSE) を叩いて逐次表示する。 */
+/* 履歴に質問 — メイン画面のモーダル内チャット UI。/api/ask (SSE) を叩いて逐次表示する。 */
 
 const md = window.markdownit({ linkify: true, breaks: true });
 
-const log = document.getElementById('log');
-const empty = document.getElementById('empty');
-const form = document.getElementById('form');
-const input = document.getElementById('input');
-const sendBtn = document.getElementById('send');
+const log = document.getElementById('ask-log');
+const empty = document.getElementById('ask-empty');
+const form = document.getElementById('ask-form');
+const input = document.getElementById('ask-input');
+const sendBtn = document.getElementById('ask-send');
 const deepMode = document.getElementById('deep-mode');
 
-/** {role, content} の対話履歴（サーバーへそのまま送る） */
+/** {role, content} の対話履歴（サーバーへそのまま送る）。モーダルを閉じても消えない */
 const history = [];
 let busy = false;
-
-/* ------------------------------------------------------------ theme */
-
-// ビューア側の設定（chv-theme: light / dark、無ければ OS 設定）に追従する
-const themeMq = window.matchMedia('(prefers-color-scheme: dark)');
-function applyTheme() {
-  const saved = localStorage.getItem('chv-theme');
-  document.documentElement.dataset.theme =
-    saved === 'light' || saved === 'dark' ? saved : themeMq.matches ? 'dark' : 'light';
-}
-applyTheme();
-themeMq.addEventListener('change', applyTheme);
-// 別タブのビューアで設定が変わったときも追従する
-window.addEventListener('storage', (ev) => {
-  if (ev.key === 'chv-theme' || ev.key === null) applyTheme();
-});
 
 /* --------------------------------------------------------------- UI */
 
@@ -161,7 +145,7 @@ async function ask(question) {
   }
   busy = false;
   sendBtn.disabled = false;
-  input.focus();
+  if (isAskOpen()) input.focus();
 }
 
 /* ------------------------------------------------- Deep リサーチ */
@@ -325,7 +309,7 @@ function watchResearch(jobId, refs, question) {
       scrollDown();
       busy = false;
       sendBtn.disabled = false;
-      input.focus();
+      if (isAskOpen()) input.focus();
     }
   });
 }
@@ -352,8 +336,8 @@ async function research(question) {
   }
 }
 
-/** ページ再読込時、実行中の調査ジョブがあれば表示を復元して購読し直す。 */
-(async () => {
+/** 実行中の調査ジョブがあれば表示を復元して購読し直す（初回オープン時に一度だけ呼ぶ）。 */
+async function restoreActiveResearch() {
   try {
     const res = await fetch('/api/research/active');
     const { job } = await res.json();
@@ -367,7 +351,46 @@ async function research(question) {
   } catch {
     /* サーバ未対応・接続不可は無視 */
   }
-})();
+}
+
+/* ------------------------------------------------------------- modal */
+
+const modal = document.getElementById('ask-modal');
+const btnAsk = document.getElementById('btn-ask');
+let restored = false;
+
+function isAskOpen() {
+  return !modal.hidden;
+}
+
+function openAsk() {
+  if (isAskOpen()) {
+    input.focus();
+    return;
+  }
+  modal.hidden = false;
+  btnAsk.setAttribute('aria-expanded', 'true');
+  if (!restored) {
+    restored = true;
+    restoreActiveResearch();
+  }
+  scrollDown(); // 閉じている間（display:none）はスクロールできないため開いた時に追い付かせる
+  input.focus();
+}
+
+function closeAsk() {
+  if (!isAskOpen()) return;
+  modal.hidden = true;
+  btnAsk.setAttribute('aria-expanded', 'false');
+  input.blur();
+}
+
+btnAsk.addEventListener('click', openAsk);
+document.getElementById('ask-close').addEventListener('click', closeAsk);
+document.getElementById('ask-backdrop').addEventListener('click', closeAsk);
+
+// app.js のキーボード処理（Esc・ショートカット抑止）から参照する
+window.askModal = { open: openAsk, close: closeAsk, isOpen: isAskOpen };
 
 /* -------------------------------------------------------------- form */
 
@@ -393,11 +416,9 @@ input.addEventListener('input', () => {
   input.style.height = Math.min(input.scrollHeight, 160) + 'px';
 });
 
-document.querySelectorAll('.hint').forEach((btn) => {
+document.querySelectorAll('.ask-empty .hint').forEach((btn) => {
   btn.addEventListener('click', () => {
     input.value = btn.textContent;
     form.requestSubmit();
   });
 });
-
-input.focus();

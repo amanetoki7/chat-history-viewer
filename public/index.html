@@ -6,6 +6,8 @@
 <title>AI Chat History Viewer</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236ea8fe' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10'/><path d='M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2'/></svg>">
 <link rel="stylesheet" href="/styles.css">
+<!-- 「履歴に質問」モーダル（本体は ask.js が描く） -->
+<link rel="stylesheet" href="/styles/ask.css">
 <!-- チャット本文の描画：共通ベース → プロバイダー個別（後勝ち・data-source で切り替わる） -->
 <link rel="stylesheet" href="/styles/chat.css">
 <link rel="stylesheet" href="/styles/providers/chatgpt.css">
@@ -30,7 +32,7 @@
 
   <div class="topbar-actions">
     <button class="icon-btn" id="btn-search" title="検索（/）" aria-label="検索" aria-haspopup="dialog" data-icon="search" data-size="18"></button>
-    <a class="icon-btn" href="/ask" title="履歴に質問（AI）" aria-label="履歴に質問" style="text-decoration:none" data-icon="sparkles" data-size="18"></a>
+    <button class="icon-btn" id="btn-ask" title="履歴に質問（AI）" aria-label="履歴に質問" aria-haspopup="dialog" data-icon="sparkles" data-size="18"></button>
     <button class="icon-btn" id="btn-settings" title="設定" aria-label="設定" aria-haspopup="dialog" data-icon="settings" data-size="18"></button>
   </div>
 </header>
@@ -119,6 +121,40 @@
   </div>
 </div>
 
+<!-- 「履歴に質問」はポップアップ。会話の状態はページを開いているあいだ保持される（描画は ask.js） -->
+<div class="ask-modal" id="ask-modal" hidden>
+  <div class="ask-backdrop" id="ask-backdrop"></div>
+  <div class="ask-dialog" role="dialog" aria-modal="true" aria-label="履歴に質問">
+    <div class="ask-head">
+      <span class="ask-mark" aria-hidden="true" data-icon="sparkles" data-size="17"></span>
+      <h2>履歴に質問</h2>
+      <button class="icon-btn" id="ask-close" title="閉じる（Esc）" aria-label="閉じる" data-icon="x" data-size="17"></button>
+    </div>
+    <div class="ask-layout">
+      <div class="ask-log" id="ask-log">
+        <div class="ask-empty" id="ask-empty">
+          <div class="mark" data-icon="sparkles" data-size="40"></div>
+          <p>過去の AI チャット履歴すべてを根拠に、自然な言葉で質問できます。</p>
+          <div class="hints">
+            <button class="hint">最近ハマっていることは？</button>
+            <button class="hint">今までに相談したプログラミングの悩みをまとめて</button>
+            <button class="hint">去年よく調べていた話題は何？</button>
+          </div>
+        </div>
+      </div>
+      <div class="ask-form-wrap">
+        <label class="deep-toggle" title="質問をサブ質問に分解し、検索と検証を繰り返す調査モード（数分〜十数分かかります）">
+          <input type="checkbox" id="deep-mode"><span data-icon="microscope" data-size="15"></span> 詳しく調査
+        </label>
+        <form class="ask-form" id="ask-form">
+          <textarea id="ask-input" rows="1" placeholder="履歴について質問…  (Enter で送信 / Shift+Enter で改行)"></textarea>
+          <button type="submit" id="ask-send">送信</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="/vendor/markdown-it/markdown-it.min.js"></script>
 <!-- コードハイライト: CodeMirror (lezer)。import map で node_modules の ESM を解決する -->
 <script type="importmap">
@@ -152,5 +188,7 @@
 </script>
 <script src="/icons.js"></script>
 <script src="/app.js"></script>
+<!-- module として読み、app.js とトップレベルの識別子（el, md など）が衝突しないようにする -->
+<script type="module" src="/ask.js"></script>
 </body>
 </html>

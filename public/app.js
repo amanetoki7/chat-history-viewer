@@ -1624,12 +1624,14 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape') {
     if (isSearchOpen()) closeSearch();
     else if (isSettingsOpen()) closeSettings();
+    else if (window.askModal?.isOpen()) window.askModal.close();
     else if (isActivityOpen()) closeActivity();
     else if (typing) ev.target.blur();
     else closeReader();
     return;
   }
-  if (isSettingsOpen()) return; // 設定を開いているあいだは他のショートカットを止める
+  // 設定・「履歴に質問」を開いているあいだは他のショートカットを止める
+  if (isSettingsOpen() || window.askModal?.isOpen()) return;
 
   if ((ev.key === '/' && !typing) || ((ev.ctrlKey || ev.metaKey) && ev.key === 'k')) {
     ev.preventDefault();
