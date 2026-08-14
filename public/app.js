@@ -1190,9 +1190,9 @@ function renderTurnHtml(turn, conv) {
 }
 
 /** 会話を開くときに最初に取得する末尾のターン数 */
-const INITIAL_TAIL_TURNS = 7;
+const INITIAL_TAIL_TURNS = 4;
 /** 上へスクロールしたとき一度に継ぎ足す過去のターン数 */
-const OLDER_CHUNK_TURNS = 20;
+const OLDER_CHUNK_TURNS = 10;
 /** 本文の上端からこの距離まで来たら過去のターンを読む（px） */
 const TOP_LOAD_MARGIN = 300;
 
