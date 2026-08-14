@@ -214,11 +214,17 @@ html[data-theme="light"] {
   color: var(--chat-link-color);
 }
 .md a.link-chip .chip-ico {
+  position: relative;
   display: inline-flex; align-items: center; justify-content: center;
   flex: none; width: 14px; height: 14px;
   color: var(--text-faint);
 }
-.md a.link-chip .chip-ico img { width: 14px; height: 14px; border-radius: 3px; }
+/* favicon は world アイコンに重ねる（未ロード中は透明で下のアイコンが見え、
+   ロード成功時に onload がアイコンを取り除く） */
+.md a.link-chip .chip-ico img {
+  position: absolute; inset: 0;
+  width: 14px; height: 14px; border-radius: 3px;
+}
 .md a.link-chip .chip-label {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }

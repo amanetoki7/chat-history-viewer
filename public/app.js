@@ -59,9 +59,11 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   const next = tokens[idx + 1];
   if (token.markup === 'linkify' && next?.type === 'text') next.content = url.hostname;
 
+  // display:none で隠すと lazy 画像は交差判定が起きず永遠にロードされないため、
+  // world アイコンの上に透明のまま重ねておき、ロード成功時にアイコン側を消す
   const fav =
-    `<img src="${escapeHtml(url.origin)}/favicon.ico" alt="" loading="lazy" style="display:none"` +
-    ` onload="this.style.display='';this.previousElementSibling?.remove()" onerror="this.remove()">`;
+    `<img src="${escapeHtml(url.origin)}/favicon.ico" alt="" loading="lazy"` +
+    ` onload="this.previousElementSibling?.remove()" onerror="this.remove()">`;
   return (
     baseLinkOpen(tokens, idx, options, env, self) +
     `<span class="chip-ico">${icon('world', 13)}${fav}</span><span class="chip-label">`
