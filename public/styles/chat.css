@@ -104,6 +104,12 @@ html[data-theme="light"] {
   line-height: var(--chat-line-height);
 }
 
+/* 過去ターンの Lazy 読み込み中に上端へ出すスピナー */
+.turns-loading {
+  display: grid; place-items: center;
+  padding: 10px 0 18px;
+}
+
 .turn {
   display: flex; flex-direction: column;
   align-items: var(--assistant-align);
@@ -369,9 +375,9 @@ details.reasoning > .block-body {
 /* 展開内の「N件のウェブサイトを検索しました」。クリックでアクティビティパネルが開く */
 .reasoning-web {
   display: flex; align-items: center; gap: 7px;
-  margin: 10px 0 2px; padding: 6px 10px 6px 8px;
+  padding: 4px 10px 4px 8px;
   background: transparent; border: 0; border-radius: 8px;
-  font: inherit; font-size: 13px; color: var(--text-dim);
+  font: inherit; font-size: 16px; color: var(--text-dim);
   cursor: pointer;
   transition: background .12s, color .12s;
 }

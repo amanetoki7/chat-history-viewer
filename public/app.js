@@ -1151,6 +1151,61 @@ let hitIndex = -1;
 /** 表示中の会話。引用チップのホバーカードが citeLists を引くのに使う */
 let activeConv = null;
 
+/** 1 ターン分の HTML。初期描画と、上方向 Lazy 読み込みの継ぎ足しの両方で使う。 */
+function renderTurnHtml(turn, conv) {
+  const who = turn.role === 'user' ? '自分' : turn.role === 'note' ? 'メモ' : conv.sourceMeta.label;
+  const extras =
+    (turn.sources ? detailsBlock('', 'link', '出典', md.render(turn.sources), false) : '') +
+    (turn.related ? detailsBlock('', 'help-circle', '関連する質問', md.render(turn.related), false) : '');
+
+  // ChatGPT は本家 UI に合わせ、添付画像を吹き出しの外（上）に独立表示する
+  let bodyText = turn.text;
+  let attachmentsHtml = '';
+  if (conv.source === 'chatgpt' && turn.role === 'user') {
+    const { images, rest } = splitAttachments(turn.text);
+    if (images.length) {
+      attachmentsHtml = `<div class="turn-attachments md">${md.render(images.join('\n\n'))}</div>`;
+      bodyText = rest;
+    }
+  }
+  // Native 描画の思考アクティビティ（「◯m ◯s考えました」）は本文の上に置く
+  const reasoningHtml = turn.role === 'assistant' && turn.reasoning ? reasoningBlock(turn) : '';
+  const bubbleHtml =
+    bodyText.trim() || extras || reasoningHtml
+      ? `<div class="bubble md">${reasoningHtml}${renderRich(bodyText, turn)}${extras}</div>`
+      : '';
+
+  return `<div class="turn ${turn.role}" data-turn="${turn.index}">
+      <div class="turn-head">
+        <span class="turn-who">${escapeHtml(who)}</span>
+        ${turn.time ? `<span>${escapeHtml(turn.time)}</span>` : ''}
+      </div>
+      ${attachmentsHtml}${bubbleHtml}
+      <div class="turn-actions">
+        <button class="act" data-act="copy" data-turn="${turn.index}" title="コピー" aria-label="コピー">${icon('copy')}</button>
+        <button class="act" data-act="share" data-turn="${turn.index}" title="共有（この発言へのリンク）" aria-label="共有">${icon('share')}</button>
+        <button class="act" data-act="edit" data-turn="${turn.index}" title="Obsidian で編集" aria-label="編集">${icon('pencil')}</button>
+      </div>
+    </div>`;
+}
+
+/** 会話を開くときに最初に取得する末尾のターン数 */
+const INITIAL_TAIL_TURNS = 7;
+/** 上へスクロールしたとき一度に継ぎ足す過去のターン数 */
+const OLDER_CHUNK_TURNS = 20;
+/** 本文の上端からこの距離まで来たら過去のターンを読む（px） */
+const TOP_LOAD_MARGIN = 300;
+
+/** openConversation の競合ガード（連打時は最後の呼び出しだけを描画する） */
+let convSeq = 0;
+
+/**
+ * リーダーのスクロール位置を瞬時に合わせる。.reader は scroll-behavior: smooth のため、
+ * scrollTop への代入だとアニメーションになり、通過中の上端付近で
+ * 過去ターンの Lazy 読み込みが誤発火してしまう。
+ */
+const setReaderScroll = (top) => el.reader.scrollTo({ top, behavior: 'instant' });
+
 /**
  * 会話を開く。
  * @param {string} relPath
@@ -1166,13 +1221,41 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
   document.body.classList.remove('menu-open'); // オーバーレイの一覧から選んだら閉じる
   writeHash();
 
+  const seq = ++convSeq;
   const scrollTop = el.reader.scrollTop;
+  const prev = activeConv;
+
+  // 取得する範囲を決める。
+  //   - keepScroll（監視による再読み込み）… 表示済みの範囲＋末尾の新規分を読み直す
+  //   - 発言指定・検索語あり             … 位置ジャンプと一致ナビのため全件
+  //   - それ以外（通常のオープン）        … 末尾だけ先に出し、過去は上スクロールで継ぎ足す
+  const tailMode = !keepScroll && focusTurn == null && !state.terms.length;
+  let range = '';
+  if (keepScroll && prev?.relPath === relPath && prev.turnFrom > 0) range = '&turnFrom=' + prev.turnFrom;
+  else if (tailMode) range = '&tail=' + INITIAL_TAIL_TURNS;
+
+  if (!keepScroll) {
+    // 前の会話が残ったままにせず、すぐにまっさらな状態にする
+    activeConv = null;
+    closeCitePop();
+    el.conversation.innerHTML = '';
+    el.conversation.hidden = false;
+    el.readerEmpty.hidden = true;
+    setReaderScroll(0);
+  }
+
   await cmHighlightReady;
-  const conv = await fetch('/api/conversation?id=' + encodeURIComponent(relPath)).then((r) => r.json());
+  const conv = await fetch('/api/conversation?id=' + encodeURIComponent(relPath) + range).then((r) => r.json());
+  if (seq !== convSeq) return; // 描画前に別の会話が開かれた
   if (conv.error) {
     if (keepScroll) showToast('この会話は索引から消えました', { iconName: 'trash', warn: true, ms: 0 });
     return;
   }
+  // 取得した範囲（pageTurns）とは別に、turn.index（全体でのインデックス）で引ける
+  // 疎配列を conv.turns に持つ。turn-actions・引用チップ・アクティビティが index で参照する
+  const pageTurns = conv.turns;
+  conv.turns = [];
+  for (const t of pageTurns) conv.turns[t.index] = t;
   activeConv = conv;
   closeCitePop();
 
@@ -1184,44 +1267,7 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
   links.push(`<a href="obsidian://open?path=${encodeURIComponent(conv.absPath)}">Obsidian で開く</a>`);
   links.push(`<a href="/api/raw?id=${encodeURIComponent(relPath)}" target="_blank" rel="noopener">Markdown 原文</a>`);
 
-  const turnsHtml = conv.turns
-    .map((turn) => {
-      const who = turn.role === 'user' ? '自分' : turn.role === 'note' ? 'メモ' : conv.sourceMeta.label;
-      const extras =
-        (turn.sources ? detailsBlock('', 'link', '出典', md.render(turn.sources), false) : '') +
-        (turn.related ? detailsBlock('', 'help-circle', '関連する質問', md.render(turn.related), false) : '');
-
-      // ChatGPT は本家 UI に合わせ、添付画像を吹き出しの外（上）に独立表示する
-      let bodyText = turn.text;
-      let attachmentsHtml = '';
-      if (conv.source === 'chatgpt' && turn.role === 'user') {
-        const { images, rest } = splitAttachments(turn.text);
-        if (images.length) {
-          attachmentsHtml = `<div class="turn-attachments md">${md.render(images.join('\n\n'))}</div>`;
-          bodyText = rest;
-        }
-      }
-      // Native 描画の思考アクティビティ（「◯m ◯s考えました」）は本文の上に置く
-      const reasoningHtml = turn.role === 'assistant' && turn.reasoning ? reasoningBlock(turn) : '';
-      const bubbleHtml =
-        bodyText.trim() || extras || reasoningHtml
-          ? `<div class="bubble md">${reasoningHtml}${renderRich(bodyText, turn)}${extras}</div>`
-          : '';
-
-      return `<div class="turn ${turn.role}" data-turn="${turn.index}">
-          <div class="turn-head">
-            <span class="turn-who">${escapeHtml(who)}</span>
-            ${turn.time ? `<span>${escapeHtml(turn.time)}</span>` : ''}
-          </div>
-          ${attachmentsHtml}${bubbleHtml}
-          <div class="turn-actions">
-            <button class="act" data-act="copy" data-turn="${turn.index}" title="コピー" aria-label="コピー">${icon('copy')}</button>
-            <button class="act" data-act="share" data-turn="${turn.index}" title="共有（この発言へのリンク）" aria-label="共有">${icon('share')}</button>
-            <button class="act" data-act="edit" data-turn="${turn.index}" title="Obsidian で編集" aria-label="編集">${icon('pencil')}</button>
-          </div>
-        </div>`;
-    })
-    .join('');
+  const turnsHtml = pageTurns.map((turn) => renderTurnHtml(turn, conv)).join('');
 
   // プロバイダーごとの描画スタイル（styles/providers/*.css）の切り替えスイッチ
   el.conversation.dataset.source = conv.source || 'unknown';
@@ -1233,7 +1279,7 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
         <span class="badge" style="color:${escapeHtml(conv.sourceMeta.color)}">${escapeHtml(conv.sourceMeta.label)}</span>
         ${conv.native ? `<span class="badge badge-native" title=".raw.json の会話ツリーから描画しています">Native</span>` : ''}
         <span>${fmtDate(itemTime(conv), true)}</span>
-        <span>${fmtInt(conv.turns.length)} 発言 / ${fmtInt(conv.chars)} 文字</span>
+        <span>${fmtInt(conv.turnCount)} 発言 / ${fmtInt(conv.chars)} 文字</span>
         ${conv.favorite ? `<span class="ri-star">${icon('star-filled', 13)}</span>` : ''}
         ${links.join('<span style="opacity:.4">·</span>')}
         <span class="hitnav" id="hitnav" hidden>
@@ -1247,7 +1293,9 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
 
   el.conversation.hidden = false;
   el.readerEmpty.hidden = true;
-  el.reader.scrollTop = keepScroll ? scrollTop : 0;
+  if (keepScroll) setReaderScroll(scrollTop);
+  else if (tailMode) setReaderScroll(el.reader.scrollHeight); // 一番最後のチャットの位置で開く
+  else setReaderScroll(0);
 
   // 検索語をハイライトし、一致箇所を辿れるようにする
   hitMarks = [];
@@ -1263,18 +1311,6 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
     }
   }
 
-  el.conversation.querySelectorAll('.turn-actions .act').forEach((btn) =>
-    btn.addEventListener('click', () => runTurnAction(btn, conv))
-  );
-
-  // 「N件のウェブサイトを検索しました」→ アクティビティを別パネルで開く
-  el.conversation.querySelectorAll('.reasoning-web').forEach((btn) =>
-    btn.addEventListener('click', () => {
-      const turn = conv.turns[Number(btn.dataset.turn)];
-      if (turn?.reasoning) openActivity(turn.reasoning);
-    })
-  );
-
   if (focusTurn !== null && focusTurn >= 0) {
     const target = el.conversation.querySelector(`.turn[data-turn="${focusTurn}"]`);
     if (target) {
@@ -1288,7 +1324,58 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
   }
   // 監視による再読み込みでは、読んでいた位置を一致箇所へ飛ばさない
   if (hitMarks.length && !keepScroll) gotoHit(1);
+
+  // 末尾だけの表示でビューポートが埋まらないときは、スクロールを待たずに過去分を継ぎ足す
+  if (tailMode) fillOlderIfShort();
 }
+
+/* ------------------------------------- 過去ターンの Lazy 読み込み（上方向） */
+
+/** 過去のターンを取得中か（多重リクエスト防止） */
+let loadingOlder = false;
+
+/** 表示済みより前のターンをひとかたまり取得して上に継ぎ足す。読書位置は保つ。 */
+async function loadOlderTurns() {
+  const conv = activeConv;
+  if (!conv || !(conv.turnFrom > 0) || loadingOlder) return;
+  const turnsEl = el.conversation.querySelector('.turns');
+  if (!turnsEl) return;
+  loadingOlder = true;
+
+  const spin = document.createElement('div');
+  spin.className = 'turns-loading';
+  spin.innerHTML = '<span class="spinner" role="status" aria-label="読み込み中"></span>';
+  turnsEl.prepend(spin);
+
+  try {
+    const to = conv.turnFrom;
+    const from = Math.max(0, to - OLDER_CHUNK_TURNS);
+    const data = await fetch(
+      `/api/conversation?id=${encodeURIComponent(conv.relPath)}&turnFrom=${from}&turnTo=${to}`
+    ).then((r) => r.json());
+    if (activeConv !== conv || data.error) return; // 取得中に別の会話へ移った
+
+    spin.remove();
+    const prevHeight = el.reader.scrollHeight;
+    const prevTop = el.reader.scrollTop;
+    turnsEl.insertAdjacentHTML('afterbegin', data.turns.map((t) => renderTurnHtml(t, conv)).join(''));
+    for (const t of data.turns) conv.turns[t.index] = t;
+    conv.turnFrom = data.turnFrom;
+    // 継ぎ足した分だけスクロール位置を送り、読んでいた場所を保つ
+    setReaderScroll(prevTop + (el.reader.scrollHeight - prevHeight));
+  } finally {
+    spin.remove();
+    loadingOlder = false;
+  }
+  fillOlderIfShort();
+}
+
+/** 上端付近（またはスクロールできない高さ）のあいだは続けて過去分を読む。 */
+function fillOlderIfShort() {
+  if (el.reader.scrollTop < TOP_LOAD_MARGIN) loadOlderTurns();
+}
+
+el.reader.addEventListener('scroll', fillOlderIfShort, { passive: true });
 
 /** 発言へのパーマリンク（#id=…&t=…）。開き直すとその発言までスクロールする。 */
 function turnLink(turnIndex) {
@@ -1333,6 +1420,22 @@ async function runTurnAction(btn, conv) {
   // 編集：元の Markdown を Obsidian で開く
   location.href = 'obsidian://open?path=' + encodeURIComponent(conv.absPath);
 }
+
+// 吹き出し下のアクションと「N件のウェブサイトを検索しました」は、過去分の
+// 継ぎ足しで増える要素にも効くよう、会話全体への委譲で拾う
+el.conversation.addEventListener('click', (ev) => {
+  if (!activeConv) return;
+  const act = ev.target.closest('.turn-actions .act');
+  if (act) {
+    runTurnAction(act, activeConv);
+    return;
+  }
+  const web = ev.target.closest('.reasoning-web');
+  if (web) {
+    const turn = activeConv.turns[Number(web.dataset.turn)];
+    if (turn?.reasoning) openActivity(turn.reasoning);
+  }
+});
 
 /* コードブロック右上のコピーボタン（markdown 描画時に .codeblock 内へ挿入される） */
 document.addEventListener('click', async (ev) => {

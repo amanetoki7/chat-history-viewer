@@ -13,7 +13,7 @@
   --border: #2a2f3a;
   --border-soft: #21252e;
   --text: #e6e8ec;
-  --text-dim: #9aa1ad;
+  --text-dim: #afafaf;
   --text-faint: #6b727f;
   --accent: #6ea8fe;
   --accent-soft: #6ea8fe22;
@@ -38,7 +38,7 @@ html[data-theme="light"] {
   --border: #d8dce3;
   --border-soft: #e6e9ee;
   --text: #1a1d23;
-  --text-dim: #5b636f;
+  --text-dim: #8f8f8f;
   --text-faint: #868e9b;
   --accent: #2563eb;
   --accent-soft: #2563eb1a;

@@ -134,6 +134,22 @@ app.get('/api/conversation', async (req, res) => {
     return { ...base, text: turn.text, sources: null, related: null };
   });
 
+  // ターン範囲の指定。tail=N は末尾 N 件、turnFrom / turnTo（末尾は省略可、to は含まない）は
+  // 絶対インデックスの範囲。turn.index は全体でのインデックスのまま返すので、
+  // フロントは後から前の範囲を継ぎ足せる（上方向の Lazy 読み込み用）
+  const turnCount = turns.length;
+  let from = 0;
+  let to = turnCount;
+  const tail = Number(req.query.tail);
+  if (Number.isFinite(tail) && tail > 0) {
+    from = Math.max(0, turnCount - Math.floor(tail));
+  } else {
+    const qFrom = Number(req.query.turnFrom);
+    const qTo = Number(req.query.turnTo);
+    if (Number.isFinite(qFrom)) from = Math.min(Math.max(Math.floor(qFrom), 0), turnCount);
+    if (Number.isFinite(qTo)) to = Math.min(Math.max(Math.floor(qTo), from), turnCount);
+  }
+
   res.json({
     relPath,
     absPath: abs,
@@ -151,7 +167,9 @@ app.get('/api/conversation', async (req, res) => {
     lastTime: conv.lastTime,
     createdAt: conv.createdAt,
     chars: conv.chars,
-    turns,
+    turnCount,
+    turnFrom: from,
+    turns: turns.slice(from, to),
   });
 });
 
