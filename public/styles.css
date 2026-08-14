@@ -484,6 +484,100 @@ kbd {
 .hitnav button { width: 26px; height: 24px; font-size: 12px; }
 .hitnav span { font-variant-numeric: tabular-nums; }
 
+/* ------------------------------------------------------- settings popup */
+
+.settings-modal { position: fixed; inset: 0; z-index: 60; }
+.settings-backdrop { position: absolute; inset: 0; background: #0007; }
+
+.settings-dialog {
+  position: relative;
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(78vh, 640px);
+  margin: 9vh auto 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: search-pop .12s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-dialog { animation: none; }
+}
+
+.settings-head {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 8px;
+  padding: 11px 10px 11px 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.settings-head .settings-mark { color: var(--text-dim); }
+.settings-head h2 { margin: 0; flex: 1 1 auto; font-size: 14px; font-weight: 650; }
+
+.settings-body { flex: 1 1 auto; display: flex; min-height: 0; }
+
+/* 左：プロバイダーのタブ */
+.settings-tabs {
+  flex: 0 0 180px;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 8px;
+  border-right: 1px solid var(--border-soft);
+  overflow-y: auto;
+}
+.settings-tab {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px;
+  background: transparent; border: none; border-radius: 8px;
+  color: var(--text-dim); font: inherit; font-size: 13px;
+  cursor: pointer; text-align: left;
+}
+.settings-tab:hover { background: var(--bg-hover); }
+.settings-tab.active { background: var(--bg-elev-2); color: var(--text); }
+.settings-tab .tab-label {
+  flex: 1 1 auto;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 既定から変更されているプロバイダーの印 */
+.settings-tab .tab-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+/* 右：設定ペイン */
+.settings-pane { flex: 1 1 auto; overflow-y: auto; padding: 6px 18px 18px; }
+.settings-section-label {
+  margin: 14px 0 4px;
+  font-size: 11px; letter-spacing: .06em;
+  color: var(--text-faint);
+}
+
+.setting-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.setting-row > label { flex: 0 0 128px; font-size: 13px; color: var(--text-dim); }
+.setting-row input[type="range"] { flex: 1 1 auto; min-width: 0; accent-color: var(--accent); }
+.setting-value {
+  flex: 0 0 52px; text-align: right;
+  font-size: 12px; font-variant-numeric: tabular-nums;
+}
+.setting-value.is-default { color: var(--text-faint); }
+
+.settings-pane .btn-block {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 16px;
+}
+.settings-note { margin: 10px 0 0; font-size: 11px; color: var(--text-faint); }
+
+@media (max-width: 640px) {
+  .settings-dialog { margin-top: 5vh; max-height: 86vh; }
+  .settings-body { flex-direction: column; }
+  .settings-tabs {
+    flex: 0 0 auto; flex-direction: row;
+    border-right: none; border-bottom: 1px solid var(--border-soft);
+    overflow-x: auto; overflow-y: hidden;
+  }
+  .settings-tab { flex: none; }
+  .setting-row { flex-wrap: wrap; }
+  .setting-row > label { flex-basis: 100%; }
+}
+
 /* -------------------------------------------------------------- narrow */
 
 .scrim { display: none; }

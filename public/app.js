@@ -234,6 +234,8 @@ const el = {
   hint: $('#search-hint'),
   btnSearch: $('#btn-search'), modal: $('#search-modal'),
   searchList: $('#search-list'), searchLabel: $('#search-label'),
+  btnSettings: $('#btn-settings'), settingsModal: $('#settings-modal'),
+  settingsTabs: $('#settings-tabs'), settingsPane: $('#settings-pane'),
 };
 
 /* ----------------------------------------------------------------- boot */
@@ -607,6 +609,200 @@ el.q.addEventListener('keydown', (ev) => {
   }
 });
 
+/* -------------------------------------------------- 設定（プロバイダー別 UI） */
+
+/**
+ * プロバイダーごとの表示調整。styles/providers/*.css の CSS 変数を
+ * <style id="provider-ui-style"> の注入で上書きする（後勝ち）。
+ * 変更した値だけを localStorage に保存し、未指定の項目は各 CSS の既定のまま。
+ */
+
+const UI_SETTINGS_KEY = 'chv-provider-ui';
+
+/** スライダーで調整する項目（.conversation の CSS 変数へ反映） */
+const UI_FIELDS = [
+  { key: 'fontSize', label: '文字サイズ', cssVar: '--chat-font-size', min: 12, max: 18, step: 0.5, unit: 'px' },
+  { key: 'lineHeight', label: '行間', cssVar: '--chat-line-height', min: 1.4, max: 2.2, step: 0.05, unit: '' },
+  { key: 'maxWidth', label: '本文の最大幅', cssVar: '--chat-max-width', min: 640, max: 1400, step: 20, unit: 'px' },
+  { key: 'bubbleWidth', label: '自分の吹き出し幅', cssVar: '--user-bubble-max-width', min: 40, max: 100, step: 2, unit: '%' },
+];
+
+/** チェックボックスの項目（一覧の行の表示。既定はコンパクト＝非表示） */
+const UI_TOGGLES = [
+  { key: 'showMeta', label: '一覧に日付・発言数を表示', selector: '.ri-meta', display: 'flex' },
+  { key: 'showPreview', label: '一覧にプレビューを表示', selector: '.ri-preview', display: '-webkit-box' },
+];
+
+/** stats が読めていないあいだのタブ用（並びは src/config.js の SOURCE_META と同じ） */
+const FALLBACK_PROVIDERS = [
+  { id: 'chatgpt', label: 'ChatGPT', color: '#10a37f' },
+  { id: 'claude', label: 'Claude', color: '#d97757' },
+  { id: 'gemini', label: 'Gemini', color: '#4285f4' },
+  { id: 'google_ai_mode', label: 'Google AI Mode', color: '#ea4335' },
+  { id: 'perplexity', label: 'Perplexity', color: '#20808d' },
+  { id: 'lmstudio', label: 'LM Studio', color: '#8b5cf6' },
+  { id: 'unknown', label: 'その他', color: '#8a8f98' },
+];
+
+let uiSettings = {};
+try {
+  uiSettings = JSON.parse(localStorage.getItem(UI_SETTINGS_KEY)) || {};
+} catch { /* 壊れた保存値は捨てる */ }
+
+const uiStyle = document.createElement('style');
+uiStyle.id = 'provider-ui-style';
+document.head.appendChild(uiStyle);
+
+function applyUiSettings() {
+  const css = [];
+  for (const [source, conf] of Object.entries(uiSettings)) {
+    const vars = UI_FIELDS.filter((f) => conf[f.key] != null)
+      .map((f) => `${f.cssVar}:${conf[f.key]}${f.unit}`)
+      .join(';');
+    if (vars) css.push(`.conversation[data-source="${source}"]{${vars}}`);
+    for (const t of UI_TOGGLES) {
+      if (conf[t.key]) css.push(`.result-item[data-source="${source}"] ${t.selector}{display:${t.display}}`);
+    }
+  }
+  uiStyle.textContent = css.join('\n');
+}
+
+function saveUiSettings() {
+  // 空になったプロバイダーは落としてから保存する
+  for (const [source, conf] of Object.entries(uiSettings)) {
+    if (!Object.keys(conf).length) delete uiSettings[source];
+  }
+  if (Object.keys(uiSettings).length) localStorage.setItem(UI_SETTINGS_KEY, JSON.stringify(uiSettings));
+  else localStorage.removeItem(UI_SETTINGS_KEY);
+  applyUiSettings();
+}
+
+applyUiSettings();
+
+/** プロバイダー CSS が定める既定値を読む（未変更の項目のスライダー初期値用） */
+function readProviderDefaults(source) {
+  const probe = document.createElement('article');
+  probe.className = 'conversation';
+  probe.dataset.source = source;
+  probe.hidden = true;
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const out = {};
+  for (const f of UI_FIELDS) out[f.key] = parseFloat(cs.getPropertyValue(f.cssVar)) || f.min;
+  probe.remove();
+  return out;
+}
+
+let settingsSource = null; // 選択中のタブ
+
+const isSettingsOpen = () => !el.settingsModal.hidden;
+
+const settingsProviders = () => (state.allSources.length ? state.allSources : FALLBACK_PROVIDERS);
+
+const isModified = (id) => Boolean(uiSettings[id] && Object.keys(uiSettings[id]).length);
+
+function renderSettingsTabs() {
+  const providers = settingsProviders();
+  if (!providers.some((p) => p.id === settingsSource)) settingsSource = providers[0].id;
+
+  el.settingsTabs.innerHTML = providers
+    .map(
+      (p) => `<button class="settings-tab${p.id === settingsSource ? ' active' : ''}" data-id="${escapeHtml(p.id)}" role="tab" aria-selected="${p.id === settingsSource}">
+        ${sourceLogo(p.id, p, false)}
+        <span class="tab-label">${escapeHtml(p.label)}</span>
+        ${isModified(p.id) ? '<span class="tab-dot" title="既定から変更あり"></span>' : ''}
+      </button>`
+    )
+    .join('');
+}
+
+function renderSettingsPane() {
+  const source = settingsSource;
+  const conf = uiSettings[source] || {};
+  const defaults = readProviderDefaults(source);
+
+  const sliders = UI_FIELDS.map((f) => {
+    const set = conf[f.key] != null;
+    const value = set ? conf[f.key] : defaults[f.key];
+    return `<div class="setting-row" data-key="${f.key}">
+      <label for="set-${f.key}">${f.label}</label>
+      <input type="range" id="set-${f.key}" min="${f.min}" max="${f.max}" step="${f.step}" value="${value}">
+      <span class="setting-value${set ? '' : ' is-default'}">${set ? `${value}${f.unit}` : '既定'}</span>
+    </div>`;
+  }).join('');
+
+  const toggles = UI_TOGGLES.map(
+    (t) => `<label class="check"><input type="checkbox" data-key="${t.key}"${conf[t.key] ? ' checked' : ''}> ${t.label}</label>`
+  ).join('');
+
+  el.settingsPane.innerHTML = `
+    <div class="settings-section-label">チャット表示</div>
+    ${sliders}
+    <div class="settings-section-label">一覧の行</div>
+    ${toggles}
+    <button class="btn-block" id="settings-reset">${icon('arrow-back-up', 14)}このプロバイダーを既定に戻す</button>
+    <p class="settings-note">設定はこのブラウザに保存され、すぐに反映されます。会話を開いたまま調整できます。</p>`;
+
+  for (const f of UI_FIELDS) {
+    const row = el.settingsPane.querySelector(`.setting-row[data-key="${f.key}"]`);
+    const input = row.querySelector('input');
+    const valueEl = row.querySelector('.setting-value');
+    input.addEventListener('input', () => {
+      const v = Number(input.value);
+      (uiSettings[source] ??= {})[f.key] = v;
+      valueEl.textContent = `${v}${f.unit}`;
+      valueEl.classList.remove('is-default');
+      saveUiSettings();
+      renderSettingsTabs();
+    });
+  }
+
+  for (const input of el.settingsPane.querySelectorAll('.check input')) {
+    input.addEventListener('change', () => {
+      if (input.checked) (uiSettings[source] ??= {})[input.dataset.key] = true;
+      else if (uiSettings[source]) delete uiSettings[source][input.dataset.key];
+      saveUiSettings();
+      renderSettingsTabs();
+    });
+  }
+
+  $('#settings-reset').addEventListener('click', () => {
+    delete uiSettings[source];
+    saveUiSettings();
+    renderSettingsTabs();
+    renderSettingsPane();
+  });
+}
+
+function openSettings() {
+  if (isSettingsOpen()) return;
+  // 開いている会話のプロバイダーを最初に選んでおく（調整しながら確認しやすい）
+  const current = el.conversation.dataset.source;
+  if (current && settingsProviders().some((p) => p.id === current)) settingsSource = current;
+  el.settingsModal.hidden = false;
+  el.btnSettings.setAttribute('aria-expanded', 'true');
+  renderSettingsTabs();
+  renderSettingsPane();
+}
+
+function closeSettings() {
+  if (!isSettingsOpen()) return;
+  el.settingsModal.hidden = true;
+  el.btnSettings.setAttribute('aria-expanded', 'false');
+}
+
+el.btnSettings.addEventListener('click', openSettings);
+$('#settings-close').addEventListener('click', closeSettings);
+$('#settings-backdrop').addEventListener('click', closeSettings);
+
+el.settingsTabs.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.settings-tab');
+  if (!btn || btn.dataset.id === settingsSource) return;
+  settingsSource = btn.dataset.id;
+  renderSettingsTabs();
+  renderSettingsPane();
+});
+
 /* ---------------------------------------------------------------- reader */
 
 let hitMarks = [];
@@ -856,15 +1052,18 @@ $('#btn-reset').addEventListener('click', () => {
 document.addEventListener('keydown', (ev) => {
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName);
 
+  if (ev.key === 'Escape') {
+    if (isSearchOpen()) closeSearch();
+    else if (isSettingsOpen()) closeSettings();
+    else if (typing) ev.target.blur();
+    else closeReader();
+    return;
+  }
+  if (isSettingsOpen()) return; // 設定を開いているあいだは他のショートカットを止める
+
   if ((ev.key === '/' && !typing) || ((ev.ctrlKey || ev.metaKey) && ev.key === 'k')) {
     ev.preventDefault();
     openSearch();
-    return;
-  }
-  if (ev.key === 'Escape') {
-    if (isSearchOpen()) closeSearch();
-    else if (typing) ev.target.blur();
-    else closeReader();
     return;
   }
   if (typing) return;
