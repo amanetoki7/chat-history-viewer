@@ -133,8 +133,10 @@ function newReasoning() {
     preamble: null, // 展開に出す前置きテキスト（is_thinking_preamble_message）
     recap: null, // 「2m 43s考えました」
     durationSec: null,
-    webSearches: [], // 「6件のウェブサイトを検索しました」の行（label / domain）
-    activity: [], // アクティビティパネルの時系列（search / thought）
+    // 展開に出すツール要約の行（「6件のウェブサイトを検索しました」「…を修正確認」など）。
+    // kind: 'web'（favicon 付き）| 'exec'（ターミナルアイコン）
+    toolRows: [],
+    activity: [], // アクティビティパネルの時系列（search / thought / exec）
     toolEntries: [], // 思考中に拾った検索結果（情報源の材料）
   };
 }
@@ -144,7 +146,7 @@ function newReasoning() {
  * 画面へ渡す reasoning オブジェクトを組み立てる。空なら null。
  */
 function finishReasoning(p, finalMeta) {
-  if (!p.preamble && !p.recap && !p.webSearches.length && !p.activity.length) return null;
+  if (!p.preamble && !p.recap && !p.toolRows.length && !p.activity.length) return null;
 
   // 情報源。本家の並びに合わせ、sources_footnote → 回答の検索結果 → 思考中の検索結果。
   // URL で重複を除き、後から来た同一 URL は欠けている項目（snippet 等）だけを埋める。
@@ -182,7 +184,7 @@ function finishReasoning(p, finalMeta) {
     preamble: p.preamble,
     recap: p.recap,
     durationSec: p.durationSec,
-    webSearches: p.webSearches,
+    toolRows: p.toolRows,
     activity: p.activity,
     sources,
   };
@@ -195,7 +197,7 @@ function mergeReasoning(a, b) {
   a.preamble = [a.preamble, b.preamble].filter(Boolean).join('\n\n') || null;
   a.recap = a.recap || b.recap;
   a.durationSec = (a.durationSec || 0) + (b.durationSec || 0) || null;
-  a.webSearches.push(...b.webSearches);
+  a.toolRows.push(...b.toolRows);
   a.activity.push(...b.activity);
   const seen = new Set(a.sources.map((s) => canonicalUrl(s.url)));
   for (const s of b.sources) if (!seen.has(canonicalUrl(s.url))) a.sources.push(s);
@@ -257,6 +259,13 @@ function buildTurns(mapping, currentNode) {
           domains: groups.map((g) => g?.domain).filter(Boolean),
         });
         for (const g of groups) pending.toolEntries.push(...(g?.entries || []));
+        continue;
+      }
+      // ターミナル実行の結果。直前のコマンド（exec）へ出力として付ける
+      if (content.content_type === 'execution_output') {
+        const out = (content.text || '').trim();
+        const item = pending.activity.findLast((a) => a.kind === 'exec' && a.output == null);
+        if (item && out) item.output = out.slice(0, 10000);
       }
       continue;
     }
@@ -275,8 +284,12 @@ function buildTurns(mapping, currentNode) {
         const label = (content.thoughts || []).map((th) => th?.summary).filter(Boolean).join(' / ');
         const groups = meta.inline_cot_expandable_content?.search_result_groups || [];
         const domain = groups[0]?.domain || iconDomain((meta.tool_icons || [])[0]);
-        if (label) pending.webSearches.push({ label, domain: domain || null });
+        if (label) pending.toolRows.push({ label, kind: 'web', domain: domain || null });
         for (const g of groups) pending.toolEntries.push(...(g?.entries || []));
+      } else if (meta.tool_summary_type) {
+        // ターミナル実行など（container 等）のツール要約。「…を修正確認」の行になる
+        const label = (content.thoughts || []).map((th) => th?.summary).filter(Boolean).join(' / ');
+        if (label) pending.toolRows.push({ label, kind: 'exec', domain: null });
       } else {
         // 要約だけの思考も保持する（ウェブ検索の無い会話ではインライン表示に使う。
         // アクティビティパネル側は本家に合わせ、本文のあるものだけを描画する）
@@ -293,6 +306,23 @@ function buildTurns(mapping, currentNode) {
     if (content.content_type === 'reasoning_recap') {
       if (typeof content.content === 'string' && content.content) pending.recap = content.content;
       if (Number.isFinite(meta.finished_duration_sec)) pending.durationSec = meta.finished_duration_sec;
+      continue;
+    }
+
+    // ターミナル実行（container.exec / python 等へのコマンド）。パネルにコードカードとして出す。
+    // web.run への検索指示は tool 側の結果メッセージから拾うためここでは扱わない
+    if (content.content_type === 'code' && msg.recipient && msg.recipient !== 'all' && msg.recipient !== 'web.run') {
+      const code = (content.text || '').trim();
+      if (code) {
+        const lang = content.language && content.language !== 'unknown' ? content.language : 'python';
+        pending.activity.push({
+          kind: 'exec',
+          title: typeof meta.reasoning_title === 'string' ? meta.reasoning_title : '',
+          lang,
+          code: code.slice(0, 20000),
+          output: null,
+        });
+      }
       continue;
     }
 

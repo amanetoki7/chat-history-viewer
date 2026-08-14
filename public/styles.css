@@ -690,6 +690,11 @@ kbd {
 .activity-item-body > *:first-child { margin-top: 0; }
 .activity-item-body > *:last-child { margin-bottom: 0; }
 
+/* ターミナル実行のコードカードと実行結果。長くても伸びすぎないよう上限を付ける */
+.activity-item-body pre { max-height: 240px; overflow: auto; }
+.activity-item-body pre code { font-size: 11.5px; }
+.activity-item-body .codeblock { margin: .6em 0; }
+
 .activity-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0 21px; }
 .activity-chip {
   display: inline-flex; align-items: center; gap: 5px;
@@ -808,5 +813,5 @@ button.activity-chip { border: none; font-family: inherit; cursor: pointer; }
   body.reading.menu-open .results { transform: none; }
   body.reading.menu-open .scrim { display: block; position: absolute; inset: 0; z-index: 20; background: #0006; }
   body:not(.reading) .reader { display: none; }
-  /* .brand-text { display: none; } */
+  .brand-text { display: none; }
 }

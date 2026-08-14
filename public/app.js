@@ -140,22 +140,27 @@ function fmtThinkDuration(sec) {
   return m ? `${m}m ${s}s` : `${s}s`;
 }
 
+/** コード内のバッククォート列より長いフェンスを選ぶ（``` を含むコードでも壊れないように） */
+const fenceFor = (s) =>
+  '`'.repeat(Math.max(3, ((s || '').match(/`+/g) || []).reduce((max, run) => Math.max(max, run.length), 0) + 1));
+
 /**
  * ChatGPT（Native）の思考アクティビティを「◯m ◯s考えました」の折りたたみにする。
- * 展開には前置きテキストと「N件のウェブサイトを検索しました」の行（1 つ目のサイトの
- * favicon 付き。クリックでアクティビティパネルが開く）を出す。
- * ウェブ検索の無い会話は、思考の要約と本文をそのまま展開に出す。
+ * 展開には前置きテキストとツール要約の行（ウェブ検索は 1 つ目のサイトの favicon、
+ * ターミナル実行はターミナルアイコン付き。クリックでアクティビティパネルが開く）を出す。
+ * ツール実行の無い会話は、思考の要約と本文をそのまま展開に出す。
  */
 function reasoningBlock(turn) {
   const r = turn.reasoning;
   const label = r.recap || (r.durationSec ? `${fmtThinkDuration(r.durationSec)}考えました` : '思考プロセス');
 
   let body = r.preamble ? md.render(r.preamble) : '';
-  const rows = r.webSearches
+  const rows = (r.toolRows || [])
     .map(
       (w) =>
         `<button type="button" class="reasoning-web" data-turn="${turn.index}" title="アクティビティを表示">` +
-        `${favIcoHtml(w.domain)}<span>${escapeHtml(w.label)}</span></button>`
+        `${w.kind === 'exec' ? `<span class="fav-ico">${icon('terminal-2', 13)}</span>` : favIcoHtml(w.domain)}` +
+        `<span>${escapeHtml(w.label)}</span></button>`
     )
     .join('');
   if (rows) {
@@ -1437,6 +1442,20 @@ function activityHtml(r) {
       html += `<div class="activity-item">
         <div class="activity-item-head">${icon('world', 14)}<span>${escapeHtml(item.title || 'ウェブを検索中')}</span></div>
         ${chips ? `<div class="activity-chips">${chips}</div>` : ''}
+      </div>`;
+      continue;
+    }
+    // ターミナル実行。コマンドのコードカードと実行結果を出す
+    if (item.kind === 'exec') {
+      const codeFence = fenceFor(item.code);
+      let bodyMd = codeFence + (item.lang || '') + '\n' + item.code + '\n' + codeFence;
+      if (item.output) {
+        const outFence = fenceFor(item.output);
+        bodyMd += '\n\n' + outFence + '\n' + item.output + '\n' + outFence;
+      }
+      html += `<div class="activity-item">
+        <div class="activity-item-head">${icon('terminal-2', 14)}<span>${escapeHtml(item.title || 'コードを実行中')}</span></div>
+        <div class="activity-item-body md">${md.render(bodyMd)}</div>
       </div>`;
       continue;
     }
