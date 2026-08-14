@@ -45,13 +45,13 @@
 <div class="layout">
 
   <aside class="sidebar" id="sidebar">
-    <section class="panel">
-      <h2>ソース</h2>
+    <details class="panel" data-panel="sources" open>
+      <summary><h2>ソース</h2></summary>
       <div id="sources" class="source-list"></div>
-    </section>
+    </details>
 
-    <section class="panel">
-      <h2>期間</h2>
+    <details class="panel" data-panel="dates" open>
+      <summary><h2>期間</h2></summary>
       <div class="date-row">
         <input type="date" id="from" aria-label="開始日">
         <span class="tilde">〜</span>
@@ -63,14 +63,14 @@
         <button class="chip" data-days="365">1年</button>
         <button class="chip" data-days="0">全期間</button>
       </div>
-    </section>
+    </details>
 
-    <section class="panel">
-      <h2>その他</h2>
+    <details class="panel" data-panel="misc" open>
+      <summary><h2>その他</h2></summary>
       <label class="check"><input type="checkbox" id="favorite"> お気に入りのみ</label>
       <label class="check"><input type="checkbox" id="archived" checked> アーカイブを含む</label>
       <button class="btn-block" id="btn-reset">条件をリセット</button>
-    </section>
+    </details>
 
     <section class="panel stats" id="stats"></section>
   </aside>

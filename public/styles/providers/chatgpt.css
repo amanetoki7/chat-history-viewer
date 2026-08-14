@@ -25,6 +25,7 @@
 
   --chat-link-color: #10a37f;
   --code-radius: 12px;
+  --attachment-radius: 1.75rem;       /* 本家の添付画像と同じ丸み */
 }
 
 html[data-theme="light"] .conversation[data-source="chatgpt"] {

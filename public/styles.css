@@ -219,6 +219,31 @@ select:hover, .icon-btn:hover, .btn-block:hover, .chip:hover { background: var(-
   color: #0d0d0d;
 }
 
+/* 折りたたみパネル（details/summary）。見出し行クリックで開閉する */
+details.panel > summary {
+  display: flex; align-items: center;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  margin: 0 -8px; padding: 2px 8px;
+  border-radius: 7px;
+}
+details.panel > summary::-webkit-details-marker { display: none; }
+details.panel > summary:hover { background: var(--bg-hover); }
+details.panel > summary h2 { margin: 0; flex: 1 1 auto; }
+details.panel > summary::after {
+  content: "";
+  width: 14px; height: 14px;
+  background: currentColor;
+  color: var(--text-faint);
+  -webkit-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6l6 -6'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6l6 -6'/></svg>") center / contain no-repeat;
+  transform: rotate(-90deg);
+  transition: transform .15s ease;
+}
+details.panel[open] > summary::after { transform: none; }
+details.panel[open] > summary { margin-bottom: 8px; }
+
 /* ソースのロゴ（サイドバー・一覧の共通パーツ。画像は theme で出し分け） */
 .src-logo {
   flex: 0 0 auto; width: 16px; height: 16px;
@@ -270,7 +295,7 @@ html[data-theme="dark"] .date-row input::-webkit-calendar-picker-indicator { fil
 .stats button { margin-top: 10px; }
 
 /* 「その他」パネルは使っていないので隠す */
-#sidebar > section:nth-child(3) { display: none; }
+#sidebar > .panel[data-panel="misc"] { display: none; }
 
 /* --------------------------------------------------------------- results */
 

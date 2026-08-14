@@ -71,6 +71,29 @@ function renderRich(text) {
   return html;
 }
 
+/* 単独行の Markdown 画像（添付画像がこの形で発言先頭に置かれる） */
+const ATTACHMENT_IMG_LINE = /^!\[[^\]]*\]\([^)]*\)$/;
+
+/**
+ * 発言先頭に並ぶ添付画像（単独行の `![...](...)`）を本文から分離する。
+ * ChatGPT のエクスポートでは添付がユーザー発言の冒頭に置かれるため、
+ * 本家 UI と同じく吹き出しの外（上）に独立して描画するのに使う。
+ */
+function splitAttachments(text) {
+  const lines = text.split('\n');
+  const images = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    if (line === '') { i++; continue; }
+    if (!ATTACHMENT_IMG_LINE.test(line)) break;
+    images.push(line);
+    i++;
+  }
+  if (!images.length) return { images, rest: text };
+  return { images, rest: lines.slice(i).join('\n').trim() };
+}
+
 /* ---------------------------------------------------------------- utils */
 
 const $ = (sel) => document.querySelector(sel);
@@ -216,6 +239,16 @@ $('#btn-theme').addEventListener('click', () => {
 
 $('#btn-menu').addEventListener('click', () => document.body.classList.toggle('menu-open'));
 $('#scrim').addEventListener('click', () => document.body.classList.remove('menu-open'));
+
+// サイドバーの折りたたみ状態を記憶する（閉じたパネルだけ保存）
+for (const panel of document.querySelectorAll('details.panel[data-panel]')) {
+  const key = `chv-panel-${panel.dataset.panel}`;
+  if (localStorage.getItem(key) === 'closed') panel.open = false;
+  panel.addEventListener('toggle', () => {
+    if (panel.open) localStorage.removeItem(key);
+    else localStorage.setItem(key, 'closed');
+  });
+}
 
 /** ファイル監視の状態表示（緑=監視中 / 灰=オフ / 赤=停止中） */
 function watchStateHtml(watcher) {
@@ -582,12 +615,26 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
       const extras =
         (turn.sources ? detailsBlock('', 'link', '出典', md.render(turn.sources), false) : '') +
         (turn.related ? detailsBlock('', 'help-circle', '関連する質問', md.render(turn.related), false) : '');
+
+      // ChatGPT は本家 UI に合わせ、添付画像を吹き出しの外（上）に独立表示する
+      let bodyText = turn.text;
+      let attachmentsHtml = '';
+      if (conv.source === 'chatgpt' && turn.role === 'user') {
+        const { images, rest } = splitAttachments(turn.text);
+        if (images.length) {
+          attachmentsHtml = `<div class="turn-attachments md">${md.render(images.join('\n\n'))}</div>`;
+          bodyText = rest;
+        }
+      }
+      const bubbleHtml =
+        bodyText.trim() || extras ? `<div class="bubble md">${renderRich(bodyText)}${extras}</div>` : '';
+
       return `<div class="turn ${turn.role}" data-turn="${turn.index}">
           <div class="turn-head">
             <span class="turn-who">${escapeHtml(who)}</span>
             ${turn.time ? `<span>${escapeHtml(turn.time)}</span>` : ''}
           </div>
-          <div class="bubble md">${renderRich(turn.text)}${extras}</div>
+          ${attachmentsHtml}${bubbleHtml}
           <div class="turn-actions">
             <button class="act" data-act="copy" data-turn="${turn.index}" title="コピー" aria-label="コピー">${icon('copy')}</button>
             <button class="act" data-act="share" data-turn="${turn.index}" title="共有（この発言へのリンク）" aria-label="共有">${icon('share')}</button>

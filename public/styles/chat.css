@@ -90,6 +90,8 @@
 /* 吹き出し下のアクション（コピー / 共有 / 編集） */
 .turn-actions { display: flex; gap: 2px; margin-top: 6px; opacity: 0; transition: opacity .12s; }
 .turn:hover .turn-actions, .turn:focus-within .turn-actions { opacity: 1; }
+/* AI の回答は常時表示（ユーザー発言はホバー時のみ） */
+.turn.assistant .turn-actions { opacity: 1; }
 .turn-actions .act {
   display: grid; place-items: center;
   width: 30px; height: 30px; padding: 0;
@@ -126,6 +128,21 @@
 }
 
 .turn.note .bubble { background: transparent; border-style: dashed; color: var(--text-dim); }
+
+/* 吹き出しの外に独立表示する添付画像（現状 ChatGPT のユーザー発言のみ） */
+.turn-attachments {
+  max-width: var(--user-bubble-max-width);
+  margin-bottom: 6px;
+}
+.turn-attachments p { margin: 0 0 6px; }
+.turn-attachments p:last-child { margin-bottom: 0; }
+/* 後続の .md img (radius 8px) に負けないよう詳細度を上げる */
+.turn .turn-attachments img {
+  display: block;
+  max-width: 100%;
+  max-height: 400px;
+  border-radius: var(--attachment-radius, 12px);
+}
 
 .turn-hit { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--bubble-radius); }
 
