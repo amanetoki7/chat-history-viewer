@@ -265,7 +265,7 @@ html[data-theme="dark"] .src-logo[data-source="chatgpt"] { background-image: url
 
 @media (max-width: 900px) {
   .source-pills { display: none; }
-  .source-filter .source-menu { display: block; }
+  .source-filter .source-menu { display: block; margin-left: 60px; }
 }
 
 .check { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; user-select: none; }
