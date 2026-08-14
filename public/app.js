@@ -1196,18 +1196,21 @@ function activityHtml(r) {
 
   for (const item of r.activity) {
     if (item.kind === 'search') {
-      const chips = item.domains
-        .slice(0, ACTIVITY_CHIP_MAX)
-        .map((d) => `<span class="activity-chip">${favIcoHtml(d)}<span>${escapeHtml(d)}</span></span>`)
-        .join('');
-      const over = item.domains.length - ACTIVITY_CHIP_MAX;
-      const overChip =
-        over > 0
-          ? `<span class="activity-chip">${favIcoHtml(item.domains[ACTIVITY_CHIP_MAX])}<span>あと ${over} 個</span></span>`
-          : '';
+      const chip = (d, cls = '') => `<span class="activity-chip${cls}">${favIcoHtml(d)}<span>${escapeHtml(d)}</span></span>`;
+      let chips = item.domains.slice(0, ACTIVITY_CHIP_MAX).map((d) => chip(d)).join('');
+      const rest = item.domains.slice(ACTIVITY_CHIP_MAX);
+      if (rest.length) {
+        // 畳んだ残りは通常は隠し、「あと N 個」（残り先頭 3 つのファビコンを重ねて表示）で展開する
+        const stack = rest.slice(0, 3).map((d) => favIcoHtml(d)).join('');
+        chips += rest.map((d) => chip(d, ' chip-rest')).join('');
+        chips +=
+          `<button type="button" class="activity-chip activity-more">` +
+          `<span class="fav-stack">${stack}</span><span>あと ${rest.length} 個</span></button>` +
+          `<button type="button" class="activity-chip activity-less">表示を減らす</button>`;
+      }
       html += `<div class="activity-item">
         <div class="activity-item-head">${icon('world', 14)}<span>${escapeHtml(item.title || 'ウェブを検索中')}</span></div>
-        ${chips ? `<div class="activity-chips">${chips}${overChip}</div>` : ''}
+        ${chips ? `<div class="activity-chips">${chips}</div>` : ''}
       </div>`;
       continue;
     }
@@ -1248,6 +1251,13 @@ function activityHtml(r) {
 }
 
 $('#activity-close').addEventListener('click', closeActivity);
+
+// 「あと N 個」⇔「表示を減らす」でサイトチップの一覧を開閉する
+$('#activity-body').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.activity-more, .activity-less');
+  if (!btn) return;
+  btn.closest('.activity-chips').classList.toggle('expanded', btn.classList.contains('activity-more'));
+});
 
 /* --------------------------------------------------------------- inputs */
 
