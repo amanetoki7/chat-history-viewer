@@ -516,6 +516,16 @@ kbd {
 .settings-head .settings-mark { color: var(--text-dim); }
 .settings-head h2 { margin: 0; flex: 1 1 auto; font-size: 14px; font-weight: 650; }
 
+/* 全プロバイダー共通の設定（タブの外に置く） */
+.settings-global {
+  flex: 0 0 auto;
+  padding: 10px 18px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.settings-global .settings-section-label { margin: 0 0 4px; }
+.settings-global .check { font-size: 13px; }
+.settings-global .settings-note { margin-top: 4px; }
+
 .settings-body { flex: 1 1 auto; display: flex; min-height: 0; }
 
 /* 左：プロバイダーのタブ */

@@ -94,7 +94,11 @@ export function search(index, options) {
     includeArchived = true,
     scope = 'all',
     sort = 'relevance',
+    timeBasis = 'start',
   } = options;
+
+  // 並び替え・期間の絞り込みに使う日時。'last' は最終メッセージ時刻基準
+  const timeOf = timeBasis === 'last' ? (e) => e.lastTime ?? e.chatTime : (e) => e.chatTime;
 
   const { terms, excludes } = parseQuery(q);
   const hasQuery = terms.length > 0 || excludes.length > 0;
@@ -105,8 +109,8 @@ export function search(index, options) {
     if (sources && !sources.has(entry.source)) continue;
     if (favorite && !entry.favorite) continue;
     if (!includeArchived && entry.archived) continue;
-    if (from !== null && entry.chatTime < from) continue;
-    if (to !== null && entry.chatTime > to) continue;
+    if (from !== null && timeOf(entry) < from) continue;
+    if (to !== null && timeOf(entry) > to) continue;
 
     if (!hasQuery) {
       hits.push({ entry, score: 0, firstHit: -1 });
@@ -150,8 +154,8 @@ export function search(index, options) {
     hits.push({ entry, score, firstHit });
   }
 
-  const byTime = (a, b) => b.entry.chatTime - a.entry.chatTime;
-  if (sort === 'oldest') hits.sort((a, b) => a.entry.chatTime - b.entry.chatTime);
+  const byTime = (a, b) => timeOf(b.entry) - timeOf(a.entry);
+  if (sort === 'oldest') hits.sort((a, b) => timeOf(a.entry) - timeOf(b.entry));
   else if (sort === 'longest') hits.sort((a, b) => b.entry.chars - a.entry.chars || byTime(a, b));
   else if (sort === 'newest' || !hasQuery) hits.sort(byTime);
   else hits.sort((a, b) => b.score - a.score || byTime(a, b));

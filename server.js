@@ -83,6 +83,7 @@ app.get('/api/conversations', async (req, res) => {
     includeArchived: req.query.archived !== '0',
     scope: ['user', 'assistant'].includes(String(req.query.scope)) ? String(req.query.scope) : 'all',
     sort: String(req.query.sort || 'relevance'),
+    timeBasis: req.query.basis === 'last' ? 'last' : 'start',
   });
 
   const { terms } = parseQuery(q);
@@ -135,6 +136,7 @@ app.get('/api/conversation', async (req, res) => {
     tags: conv.tags,
     spaceName: conv.spaceName,
     chatTime: conv.chatTime,
+    lastTime: conv.lastTime,
     createdAt: conv.createdAt,
     chars: conv.chars,
     turns,

@@ -302,6 +302,9 @@ export function parseChatFile(raw, ctx) {
 
   const source = normalizeSource(data.Source, ctx.relPath);
   const chatTime = toEpoch(data['Chat Time']) ?? toEpoch(turns.find((t) => t.time)?.time) ?? ctx.mtimeMs;
+  // 本家 GUI の多くはチャット一覧を最終メッセージ順に並べるため、最後の発言時刻も持つ。
+  // 発言に時刻が無い形式（thread / plain）は chatTime と同じ値になる。
+  const lastTime = toEpoch(turns.findLast((t) => t.time)?.time) ?? chatTime;
   const firstUser = turns.find((t) => t.role === 'user');
   const preview = stripDataUriPayloads(firstUser?.text || turns[0]?.text || '')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ') // 画像
@@ -326,6 +329,7 @@ export function parseChatFile(raw, ctx) {
     tags: Array.isArray(data.Tags) ? data.Tags : [],
     spaceName: typeof data['Space Name'] === 'string' ? data['Space Name'] : '',
     chatTime,
+    lastTime,
     createdAt: toEpoch(data['Created at']),
     mtimeMs: ctx.mtimeMs,
     size: ctx.size,

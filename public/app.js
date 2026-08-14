@@ -343,6 +343,7 @@ function buildQuery(offset) {
   if (!state.archived) p.set('archived', '0');
   p.set('scope', state.scope);
   p.set('sort', state.sort);
+  p.set('basis', timeBasis);
   p.set('offset', String(offset));
   p.set('limit', String(state.limit));
   return p.toString();
@@ -461,7 +462,7 @@ function renderItems(items) {
         ${item.favorite ? `<span class="ri-star" title="お気に入り">${icon('star-filled', 13)}</span>` : ''}
       </div>
       <div class="ri-meta">
-        <span>${fmtDate(item.chatTime)}</span>
+        <span>${fmtDate(itemTime(item))}</span>
         <span>${fmtInt(item.turnCount)} 発言</span>
       </div>
       ${snippets || `<div class="ri-preview">${highlightText(item.preview, state.terms)}</div>`}`;
@@ -538,7 +539,7 @@ function renderSearchList() {
       return `<li data-id="${escapeHtml(item.relPath)}" data-source="${escapeHtml(item.source)}">
         ${sourceLogo(item.source, meta, false)}
         <span class="sr-title">${highlightText(item.title, state.terms)}</span>
-        <span class="sr-date">${fmtDate(item.chatTime)}</span>
+        <span class="sr-date">${fmtDate(itemTime(item))}</span>
       </li>`;
     })
     .join('');
@@ -607,6 +608,30 @@ el.q.addEventListener('keydown', (ev) => {
     }
   }
 });
+
+/* -------------------------------------------------- 設定（共通） */
+
+/**
+ * チャットの日時の基準（'last'=最終メッセージ時刻 / 'start'=チャット開始時刻）。
+ * 多くの公式アプリの一覧は最終メッセージ順なので、既定は 'last'。
+ * 一覧の日付表示に加え、サーバー側の並び替え・期間絞り込みにも渡す。
+ */
+const TIME_BASIS_KEY = 'chv-time-basis';
+let timeBasis = localStorage.getItem(TIME_BASIS_KEY) === 'start' ? 'start' : 'last';
+
+/** 基準設定に応じた表示用日時。古い索引に lastTime が無ければ chatTime に落とす。 */
+const itemTime = (item) => (timeBasis === 'last' ? item.lastTime ?? item.chatTime : item.chatTime);
+
+for (const input of document.querySelectorAll('#settings-global input[name="time-basis"]')) {
+  input.checked = input.value === timeBasis;
+  input.addEventListener('change', () => {
+    if (!input.checked) return;
+    timeBasis = input.value;
+    localStorage.setItem(TIME_BASIS_KEY, timeBasis);
+    reload(); // 並び順・日付表示を新しい基準で読み直す
+    if (state.activeId) openConversation(state.activeId, null, { keepScroll: true });
+  });
+}
 
 /* -------------------------------------------------- 設定（プロバイダー別 UI） */
 
@@ -879,7 +904,7 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
       <div class="conv-meta">
         <span class="badge" style="color:${escapeHtml(conv.sourceMeta.color)}">${escapeHtml(conv.sourceMeta.label)}</span>
         ${conv.native ? `<span class="badge badge-native" title=".raw.json の会話ツリーから描画しています">Native</span>` : ''}
-        <span>${fmtDate(conv.chatTime, true)}</span>
+        <span>${fmtDate(itemTime(conv), true)}</span>
         <span>${fmtInt(conv.turns.length)} 発言 / ${fmtInt(conv.chars)} 文字</span>
         ${conv.favorite ? `<span class="ri-star">${icon('star-filled', 13)}</span>` : ''}
         ${links.join('<span style="opacity:.4">·</span>')}
