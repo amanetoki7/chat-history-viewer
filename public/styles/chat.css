@@ -228,6 +228,13 @@ html[data-theme="light"] {
 .md a.link-chip .chip-label {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* 引用チップの「+N」（残りの出典数）。ホバーカードでページ送りできる */
+.md a.link-chip .cite-more {
+  flex: none;
+  margin-left: 1px;
+  font-size: .82em;
+  color: var(--text-faint);
+}
 .md code {
   font-family: var(--code-font); font-size: .89em;
   background: var(--code-bg); border: 1px solid var(--border-soft);

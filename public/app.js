@@ -43,9 +43,38 @@ for (const rule of ['fence', 'code_block']) {
 const baseLinkOpen =
   md.renderer.rules.link_open ?? ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options));
 
+/* display:none で隠すと lazy 画像は交差判定が起きず永遠にロードされないため、
+ * world アイコンの上に透明のまま重ねておき、ロード成功時にアイコン側を消す */
+const chipIcoHtml = (origin) =>
+  `<span class="chip-ico">${icon('world', 13)}` +
+  `<img src="${escapeHtml(origin)}/favicon.ico" alt="" loading="lazy"` +
+  ` onload="this.previousElementSibling?.remove()" onerror="this.remove()"></span>`;
+
 md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   const token = tokens[idx];
   const href = token.attrGet('href') || '';
+
+  // ChatGPT（Native）の引用チップ。`#cite-N` は turn.citeLists[N]（出典ページの束）を指す。
+  // リンク先は「ホバーカードで今開いているページ」= 初期状態では 1 つ目の出典
+  const cite = /^#cite-(\d+)$/.exec(href);
+  const pages = cite ? env.turn?.citeLists?.[Number(cite[1])] : null;
+  if (pages?.length) {
+    token.attrSet('href', pages[0].url);
+    token.attrJoin('class', 'link-chip cite-chip');
+    token.attrSet('target', '_blank');
+    token.attrSet('rel', 'noopener');
+    token.attrSet('data-cite', cite[1]);
+    (env.linkChips ??= []).push(pages.length);
+    let origin = '';
+    try {
+      origin = new URL(pages[0].url).origin;
+    } catch {}
+    return (
+      baseLinkOpen(tokens, idx, options, env, self) +
+      `${origin ? chipIcoHtml(origin) : ''}<span class="chip-label">`
+    );
+  }
+
   const chip = /^https?:\/\//i.test(href);
   (env.linkChips ??= []).push(chip);
   if (!chip) return baseLinkOpen(tokens, idx, options, env, self);
@@ -59,20 +88,16 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   const next = tokens[idx + 1];
   if (token.markup === 'linkify' && next?.type === 'text') next.content = url.hostname;
 
-  // display:none で隠すと lazy 画像は交差判定が起きず永遠にロードされないため、
-  // world アイコンの上に透明のまま重ねておき、ロード成功時にアイコン側を消す
-  const fav =
-    `<img src="${escapeHtml(url.origin)}/favicon.ico" alt="" loading="lazy"` +
-    ` onload="this.previousElementSibling?.remove()" onerror="this.remove()">`;
-  return (
-    baseLinkOpen(tokens, idx, options, env, self) +
-    `<span class="chip-ico">${icon('world', 13)}${fav}</span><span class="chip-label">`
-  );
+  return baseLinkOpen(tokens, idx, options, env, self) + `${chipIcoHtml(url.origin)}<span class="chip-label">`;
 };
 
 md.renderer.rules.link_close = (tokens, idx, options, env, self) => {
   const closing = self.renderToken(tokens, idx, options);
-  return env.linkChips?.pop() ? `</span>${closing}` : closing;
+  const chip = env.linkChips?.pop();
+  if (!chip) return closing;
+  // 引用チップ（数値 = 出典ページ数）は残り件数を「+N」で添える
+  const more = typeof chip === 'number' && chip > 1 ? `<span class="cite-more">+${chip - 1}</span>` : '';
+  return `</span>${more}${closing}`;
 };
 
 const ARTIFACT_LANG = {
@@ -180,6 +205,8 @@ function navCardsHtml(items) {
  */
 function renderRich(text, turn) {
   if (!text) return '';
+  // link_open レンダラーが引用チップ（#cite-N）の解決に turn.citeLists を使う
+  const env = { turn };
   const re =
     /<antArtifact\b([^>]*)>([\s\S]*?)<\/antArtifact>|<antThinking>([\s\S]*?)<\/antThinking>|<antNavList index="(\d+)"><\/antNavList>/g;
   let html = '';
@@ -188,7 +215,7 @@ function renderRich(text, turn) {
 
   while ((m = re.exec(text)) !== null) {
     const before = text.slice(last, m.index);
-    if (before.trim()) html += md.render(before);
+    if (before.trim()) html += md.render(before, env);
     last = m.index + m[0].length;
 
     if (m[4] !== undefined) {
@@ -205,7 +232,7 @@ function renderRich(text, turn) {
     }
   }
   const rest = text.slice(last);
-  if (rest.trim()) html += md.render(rest);
+  if (rest.trim()) html += md.render(rest, env);
   return html;
 }
 
@@ -950,6 +977,8 @@ el.settingsTabs.addEventListener('click', (ev) => {
 
 let hitMarks = [];
 let hitIndex = -1;
+/** 表示中の会話。引用チップのホバーカードが citeLists を引くのに使う */
+let activeConv = null;
 
 /**
  * 会話を開く。
@@ -972,6 +1001,8 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
     if (keepScroll) showToast('この会話は索引から消えました', { iconName: 'trash', warn: true, ms: 0 });
     return;
   }
+  activeConv = conv;
+  closeCitePop();
 
   const links = [];
   if (conv.url)
@@ -1258,6 +1289,108 @@ $('#activity-body').addEventListener('click', (ev) => {
   if (!btn) return;
   btn.closest('.activity-chips').classList.toggle('expanded', btn.classList.contains('activity-more'));
 });
+
+/* ------------------------------------------- 引用チップのホバーカード */
+
+/*
+ * 本文の引用チップ（「Reuters +2」）にホバーすると、出典の詳細カードを重ねて出す。
+ * 複数出典のチップは ← → でページ送りでき、今開いているページが
+ * そのままチップのリンク先になる。
+ */
+
+const citePop = $('#cite-pop');
+/** 表示中のカード。{ chip, pages, idx } */
+let citeState = null;
+let citeHideTimer = null;
+
+function closeCitePop() {
+  clearTimeout(citeHideTimer);
+  citePop.hidden = true;
+  citeState = null;
+}
+
+function renderCitePop() {
+  const { chip, pages, idx } = citeState;
+  const p = pages[idx];
+  let domain = '';
+  try {
+    domain = new URL(p.url).hostname;
+  } catch {}
+  const date = p.date ? dtSource.format(new Date(p.date)) + ' — ' : '';
+  const snippet = date + (p.snippet || '');
+  const nav =
+    pages.length > 1
+      ? `<div class="cite-pop-head">
+          <button type="button" class="cite-pop-nav" data-dir="-1" aria-label="前の出典">${icon('arrow-left', 14)}</button>
+          <button type="button" class="cite-pop-nav" data-dir="1" aria-label="次の出典">${icon('arrow-right', 14)}</button>
+          <span class="cite-pop-count">${idx + 1}/${pages.length}</span>
+        </div>`
+      : '';
+  citePop.innerHTML = `${nav}
+    <a class="cite-pop-item" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">
+      <span class="cite-pop-site">${favIcoHtml(domain)}<span>${escapeHtml(p.attribution || domain)}</span></span>
+      ${p.title ? `<span class="cite-pop-title">${escapeHtml(p.title)}</span>` : ''}
+      ${snippet ? `<span class="cite-pop-snippet">${escapeHtml(snippet)}</span>` : ''}
+    </a>`;
+  // 今開いているページをチップのリンク先にする
+  chip.href = p.url;
+}
+
+function positionCitePop() {
+  const rect = citeState.chip.getBoundingClientRect();
+  citePop.style.visibility = 'hidden';
+  citePop.hidden = false;
+  const w = citePop.offsetWidth;
+  const h = citePop.offsetHeight;
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - w - 12));
+  let top = rect.bottom + 6;
+  if (top + h > window.innerHeight - 8) top = rect.top - h - 6;
+  citePop.style.left = `${left}px`;
+  citePop.style.top = `${top}px`;
+  citePop.style.visibility = '';
+}
+
+function openCitePop(chip) {
+  const turn = activeConv?.turns[Number(chip.closest('.turn')?.dataset.turn)];
+  const pages = turn?.citeLists?.[Number(chip.dataset.cite)];
+  if (!pages?.length) return;
+  citeState = { chip, pages, idx: 0 };
+  renderCitePop();
+  positionCitePop();
+}
+
+// ホバーで開く。チップ⇔カード間の移動では消えないよう、少し待ってから閉じる
+document.addEventListener('mouseover', (ev) => {
+  const chip = ev.target.closest?.('.cite-chip');
+  if (chip) {
+    clearTimeout(citeHideTimer);
+    if (citeState?.chip !== chip) openCitePop(chip);
+    return;
+  }
+  if (ev.target.closest?.('#cite-pop')) clearTimeout(citeHideTimer);
+});
+
+document.addEventListener('mouseout', (ev) => {
+  if (!citeState) return;
+  if (!ev.target.closest?.('.cite-chip, #cite-pop')) return;
+  const to = ev.relatedTarget;
+  if (to && (to.closest?.('.cite-chip') === citeState.chip || to.closest?.('#cite-pop'))) return;
+  clearTimeout(citeHideTimer);
+  citeHideTimer = setTimeout(closeCitePop, 200);
+});
+
+// ← → でページ送り
+citePop.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.cite-pop-nav');
+  if (!btn || !citeState) return;
+  const n = citeState.pages.length;
+  citeState.idx = (citeState.idx + Number(btn.dataset.dir) + n) % n;
+  renderCitePop();
+  positionCitePop();
+});
+
+// カードは画面座標で固定なので、本文スクロールに追従せず閉じる
+el.reader.addEventListener('scroll', () => closeCitePop(), { passive: true });
 
 /* --------------------------------------------------------------- inputs */
 

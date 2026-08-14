@@ -19,15 +19,38 @@ function fmtTime(sec) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+/** URL のホスト名（出典ラベルの代替に使う） */
+function urlHost(url) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
+/** 引用ホバーカードの 1 ページぶんに整形する。 */
+function toCitePage(it) {
+  return {
+    title: it.title || '',
+    url: it.url,
+    snippet: it.snippet || '',
+    date: Number.isFinite(it.pub_date) ? it.pub_date * 1000 : null,
+    attribution: it.attribution || '',
+  };
+}
+
 /**
  * 本文中の引用マーカー（citeturn0search1 のような私用領域文字の並び）を
  * metadata.content_references の代替表記（Markdown リンク）へ置き換える。
  *
- * nav_list（回答末尾の記事カルーセル）は Markdown ではなく構造化データとして
- * navLists へ集め、本文にはプレースホルダー `<antNavList index="N"></antNavList>`
- * を残す（フロントが記事カードとして描画する）。
+ * collect（{ navLists, citeLists }）を渡すと、次の 2 種は構造化データとして集め、
+ * 本文にはプレースホルダーだけを残す（フロントが描画する）。
+ *   - nav_list（回答末尾の記事カルーセル）→ navLists / `<antNavList index="N"></antNavList>`
+ *   - grouped_webpages（引用チップ）→ citeLists / `[ラベル](#cite-N)`
+ *     主出典 + supporting_websites を 1 つのチップ（「Reuters +2」）に束ね、
+ *     ホバーカードでページ送りできるようにする。
  */
-function applyContentReferences(text, refs, navLists) {
+function applyContentReferences(text, refs, collect) {
   if (Array.isArray(refs)) {
     // sources_footnote は matched_text が空白 1 文字のことがあるため、
     // マーカー文字を含む参照だけを、長い一致から順に置換する
@@ -35,7 +58,7 @@ function applyContentReferences(text, refs, navLists) {
     usable.sort((a, b) => b.matched_text.length - a.matched_text.length);
     for (const ref of usable) {
       let alt = ref.alt || '';
-      if (ref.type === 'nav_list' && Array.isArray(navLists) && Array.isArray(ref.items)) {
+      if (ref.type === 'nav_list' && collect && Array.isArray(ref.items)) {
         const items = ref.items
           .filter((it) => it?.url)
           .map((it) => ({
@@ -45,7 +68,18 @@ function applyContentReferences(text, refs, navLists) {
             date: Number.isFinite(it.pub_date) ? it.pub_date * 1000 : null,
             attribution: it.attribution || '',
           }));
-        if (items.length) alt = `\n\n<antNavList index="${navLists.push(items) - 1}"></antNavList>\n\n`;
+        if (items.length) alt = `\n\n<antNavList index="${collect.navLists.push(items) - 1}"></antNavList>\n\n`;
+      } else if (ref.type === 'grouped_webpages' && collect && Array.isArray(ref.items)) {
+        const pages = [];
+        for (const it of ref.items) {
+          if (!it?.url) continue;
+          pages.push(toCitePage(it));
+          for (const s of it.supporting_websites || []) if (s?.url) pages.push(toCitePage(s));
+        }
+        if (pages.length) {
+          const label = (pages[0].attribution || urlHost(pages[0].url)).replace(/[[\]]/g, ' ').trim() || '出典';
+          alt = `[${label}](#cite-${collect.citeLists.push(pages) - 1})`;
+        }
       }
       text = text.split(ref.matched_text).join(alt);
     }
@@ -266,8 +300,8 @@ function buildTurns(mapping, currentNode) {
     if (msg.recipient && msg.recipient !== 'all') continue;
     if (content.content_type !== 'text' && content.content_type !== 'multimodal_text') continue;
 
-    const navLists = [];
-    const text = applyContentReferences(partsToText(content).text, meta.content_references, navLists);
+    const collect = { navLists: [], citeLists: [] };
+    const text = applyContentReferences(partsToText(content).text, meta.content_references, collect);
     if (!text.trim()) continue;
     const reasoning = finishReasoning(pending, meta);
     pending = newReasoning();
@@ -275,12 +309,17 @@ function buildTurns(mapping, currentNode) {
     const prev = turns[turns.length - 1];
     if (prev?.role === 'assistant') {
       // 本家 UI では 1 回の返信が複数メッセージに分かれることがあるため 1 ターンに束ねる。
-      // 記事カードのプレースホルダーは、束ねた先の並びに合わせて番号を振り直す
+      // 記事カード・引用のプレースホルダーは、束ねた先の並びに合わせて番号を振り直す
       let merged = text;
-      if (navLists.length) {
+      if (collect.navLists.length) {
         const base = (prev.navLists ??= []).length;
-        merged = text.replace(/<antNavList index="(\d+)">/g, (_, k) => `<antNavList index="${base + Number(k)}">`);
-        prev.navLists.push(...navLists);
+        merged = merged.replace(/<antNavList index="(\d+)">/g, (_, k) => `<antNavList index="${base + Number(k)}">`);
+        prev.navLists.push(...collect.navLists);
+      }
+      if (collect.citeLists.length) {
+        const base = (prev.citeLists ??= []).length;
+        merged = merged.replace(/\]\(#cite-(\d+)\)/g, (_, k) => `](#cite-${base + Number(k)})`);
+        prev.citeLists.push(...collect.citeLists);
       }
       prev.text += '\n\n' + merged;
       if (reasoning) prev.reasoning = mergeReasoning(prev.reasoning, reasoning);
@@ -291,7 +330,8 @@ function buildTurns(mapping, currentNode) {
         time: fmtTime(msg.create_time),
         text,
         reasoning,
-        navLists: navLists.length ? navLists : null,
+        navLists: collect.navLists.length ? collect.navLists : null,
+        citeLists: collect.citeLists.length ? collect.citeLists : null,
       });
     }
   }

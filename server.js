@@ -123,6 +123,8 @@ app.get('/api/conversation', async (req, res) => {
       reasoning: turn.reasoning || null,
       // Native 描画（ChatGPT）の記事カード（nav_list。本文の <antNavList> が参照する）
       navLists: turn.navLists || null,
+      // Native 描画（ChatGPT）の引用チップ（grouped_webpages。本文の #cite- リンクが参照する）
+      citeLists: turn.citeLists || null,
     };
     // Sources / Related Questions の見出し分割は .md（Perplexity Threads）由来の構造にだけ適用する
     if (!native && turn.role === 'assistant') {
