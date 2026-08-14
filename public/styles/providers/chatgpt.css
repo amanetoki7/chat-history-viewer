@@ -36,55 +36,102 @@ html[data-theme="light"] .conversation[data-source="chatgpt"] {
 }
 
 /*
- * コードハイライト: hljs の a11y-light テーマ（ライトテーマ時のみ）。
- * ダークテーマでは暗い背景に濃色トークンが沈むため、共通の github-dark のまま。
- * 配色は node_modules/@highlightjs/cdn-assets/styles/a11y-light.css より。
+ * コードハイライト: 本家 ChatGPT（CodeMirror 6）の配色を hljs クラスに移植して再現。
+ * 配色は chatgpt.com の実測（2026-08）。OpenAI のパレットで
+ * ライトは各色の -600、ダークは -200 が使われる（グレー系のみ別値）。
+ *   ライト: comment #818181(italic) / keyword･演算子 pink-600 / 文字列 green-600
+ *           数値･真偽値･クラス名 orange-600 / 変数･関数名 purple-600
+ *           タグ blue-600 / 属性名 yellow-600 / 本文 #0d0d0d
+ *   ダーク: 同マッピングで -200 系、comment #d8d8d8(非イタリック)、本文 #fff
  * 背景は --code-bg（chat.css の .md pre）に任せる。
  */
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs {
-  color: #545454;
+.conversation[data-source="chatgpt"] {
+  --cgpt-code-fg: #fff;
+  --cgpt-code-comment: #d8d8d8;
+  --cgpt-code-comment-style: normal;
+  --cgpt-code-keyword: #f8a6c8;   /* pink-200: キーワード・演算子・記号 */
+  --cgpt-code-string: #83d197;    /* green-200: 文字列・正規表現 */
+  --cgpt-code-number: #f1a275;    /* orange-200: 数値・真偽値・型・クラス名 */
+  --cgpt-code-variable: #b897f4;  /* purple-200: 変数・プロパティ・関数名 */
+  --cgpt-code-tag: #63a8f8;       /* blue-200: タグ・メタ・見出し */
+  --cgpt-code-attr: #f9dc78;      /* yellow-200: 属性名 */
+  --cgpt-code-invalid: #ff8583;   /* red-200: 削除・不正 */
 }
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-comment,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-quote {
-  color: #696969;
+html[data-theme="light"] .conversation[data-source="chatgpt"] {
+  --cgpt-code-fg: #0d0d0d;
+  --cgpt-code-comment: #818181;
+  --cgpt-code-comment-style: italic;
+  --cgpt-code-keyword: #ab4f7a;   /* pink-600 */
+  --cgpt-code-string: #3a843f;    /* green-600 */
+  --cgpt-code-number: #ac4f23;    /* orange-600 */
+  --cgpt-code-variable: #643cae;  /* purple-600 */
+  --cgpt-code-tag: #1f4e94;       /* blue-600 */
+  --cgpt-code-attr: #b8802b;      /* yellow-600 */
+  --cgpt-code-invalid: #ba2623;   /* red-600 */
 }
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-variable,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-template-variable,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-tag,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-name,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-selector-id,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-selector-class,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-regexp,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-deletion {
-  color: #d91e18;
+
+.conversation[data-source="chatgpt"] .md pre code {
+  color: var(--cgpt-code-fg);
 }
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-number,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-built_in,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-literal,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-type,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-params,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-meta,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-link,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-attribute {
-  color: #aa5d00;
+.conversation[data-source="chatgpt"] .hljs-comment,
+.conversation[data-source="chatgpt"] .hljs-quote {
+  color: var(--cgpt-code-comment);
+  font-style: var(--cgpt-code-comment-style);
 }
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-string,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-symbol,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-bullet,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-addition {
-  color: #008000;
+.conversation[data-source="chatgpt"] .hljs-keyword,
+.conversation[data-source="chatgpt"] .hljs-operator,
+.conversation[data-source="chatgpt"] .hljs-punctuation {
+  color: var(--cgpt-code-keyword);
 }
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-title,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-section {
-  color: #007faa;
+.conversation[data-source="chatgpt"] .hljs-string,
+.conversation[data-source="chatgpt"] .hljs-regexp,
+.conversation[data-source="chatgpt"] .hljs-addition {
+  color: var(--cgpt-code-string);
 }
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-keyword,
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-selector-tag {
-  color: #7928a1;
+.conversation[data-source="chatgpt"] .hljs-variable,
+.conversation[data-source="chatgpt"] .hljs-template-variable,
+.conversation[data-source="chatgpt"] .hljs-property,
+.conversation[data-source="chatgpt"] .hljs-params,
+.conversation[data-source="chatgpt"] .hljs-built_in,
+.conversation[data-source="chatgpt"] .hljs-title {
+  color: var(--cgpt-code-variable);
 }
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-emphasis {
+.conversation[data-source="chatgpt"] .hljs-number,
+.conversation[data-source="chatgpt"] .hljs-literal,
+.conversation[data-source="chatgpt"] .hljs-symbol,
+.conversation[data-source="chatgpt"] .hljs-bullet,
+.conversation[data-source="chatgpt"] .hljs-type,
+.conversation[data-source="chatgpt"] .hljs-selector-class,
+.conversation[data-source="chatgpt"] .hljs-selector-id,
+.conversation[data-source="chatgpt"] .hljs-title.class_ {
+  color: var(--cgpt-code-number);
+}
+.conversation[data-source="chatgpt"] .hljs-tag,
+.conversation[data-source="chatgpt"] .hljs-name,
+.conversation[data-source="chatgpt"] .hljs-meta,
+.conversation[data-source="chatgpt"] .hljs-doctag,
+.conversation[data-source="chatgpt"] .hljs-section,
+.conversation[data-source="chatgpt"] .hljs-selector-tag {
+  color: var(--cgpt-code-tag);
+}
+.conversation[data-source="chatgpt"] .hljs-attr,
+.conversation[data-source="chatgpt"] .hljs-attribute {
+  color: var(--cgpt-code-attr);
+}
+/* JSON のキーは本家では変数と同じ紫 */
+.conversation[data-source="chatgpt"] .md pre code.language-json .hljs-attr {
+  color: var(--cgpt-code-variable);
+}
+.conversation[data-source="chatgpt"] .hljs-link {
+  color: var(--cgpt-code-tag);
+  text-decoration: underline;
+}
+.conversation[data-source="chatgpt"] .hljs-deletion {
+  color: var(--cgpt-code-invalid);
+}
+.conversation[data-source="chatgpt"] .hljs-emphasis {
   font-style: italic;
 }
-html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-strong {
+.conversation[data-source="chatgpt"] .hljs-strong {
   font-weight: bold;
 }
