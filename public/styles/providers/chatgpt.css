@@ -34,3 +34,57 @@ html[data-theme="light"] .conversation[data-source="chatgpt"] {
   --block-bg: #f4f4f4;
   --user-bubble-bg: #ececec;
 }
+
+/*
+ * コードハイライト: hljs の a11y-light テーマ（ライトテーマ時のみ）。
+ * ダークテーマでは暗い背景に濃色トークンが沈むため、共通の github-dark のまま。
+ * 配色は node_modules/@highlightjs/cdn-assets/styles/a11y-light.css より。
+ * 背景は --code-bg（chat.css の .md pre）に任せる。
+ */
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs {
+  color: #545454;
+}
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-comment,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-quote {
+  color: #696969;
+}
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-variable,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-template-variable,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-tag,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-name,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-selector-id,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-selector-class,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-regexp,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-deletion {
+  color: #d91e18;
+}
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-number,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-built_in,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-literal,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-type,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-params,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-meta,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-link,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-attribute {
+  color: #aa5d00;
+}
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-string,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-symbol,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-bullet,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-addition {
+  color: #008000;
+}
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-title,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-section {
+  color: #007faa;
+}
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-keyword,
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-selector-tag {
+  color: #7928a1;
+}
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-emphasis {
+  font-style: italic;
+}
+html[data-theme="light"] .conversation[data-source="chatgpt"] .hljs-strong {
+  font-weight: bold;
+}
