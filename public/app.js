@@ -652,6 +652,7 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
       <h1 class="conv-title">${escapeHtml(conv.title)}</h1>
       <div class="conv-meta">
         <span class="badge" style="color:${escapeHtml(conv.sourceMeta.color)}">${escapeHtml(conv.sourceMeta.label)}</span>
+        ${conv.native ? `<span class="badge badge-native" title=".raw.json の会話ツリーから描画しています">Native</span>` : ''}
         <span>${fmtDate(conv.chatTime, true)}</span>
         <span>${fmtInt(conv.turns.length)} 発言 / ${fmtInt(conv.chars)} 文字</span>
         ${conv.favorite ? `<span class="ri-star">${icon('star-filled', 13)}</span>` : ''}

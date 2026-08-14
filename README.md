@@ -50,6 +50,7 @@ npm run reindex                                      # 索引を強制的に作�
 - Markdown・表・コードのシンタックスハイライト描画
 - Claude の `<antArtifact>` / `<antThinking>` は折りたたみブロックとして描画
 - Perplexity の `## Sources` / `## Related Questions` は出典セクションとして分離
+- 同名の `.raw.json` がある会話は会話ツリーから描画（**Native** バッジ。詳細は「対応フォーマット」）
 - 検索語を本文中でハイライトし、`↑` `↓` で一致箇所を順に辿れる
 - 元のチャット URL / Obsidian / Markdown 原文へのリンク
 - ダーク / ライトテーマ
@@ -97,12 +98,27 @@ LLM 呼び出し最大 30 回・同時実行 1 件（`src/research.js` の `BUDG
 フロントマター（`Source` / `Chat Time` / `URL` / `Favorite` / `Archive` / `Tags` など）は
 そのままメタデータとして取り込む。`Source` が無いファイルはパスから推定する。
 
+### Native 描画（.raw.json）
+
+`.md` と同名の `.raw.json`（エクスポータが保存したサービス生 API 応答）がある会話は、
+Markdown の代わりにその会話ツリーから描画する（現状 ChatGPT のみ対応）。
+会話ヘッダーに **Native** バッジが付き、次の点で表示が良くなる。
+
+- 引用マーカー（`citeturn0search1` のような文字化け）を出典リンクへ置換
+- 思考プロセスを折りたたみブロックとして表示
+- 発言ごとの正確な時刻とモデル名
+- 編集で分岐した会話は、本家 UI に表示されている枝（`current_node`）を表示
+
+検索・索引は従来どおり `.md` を対象とし、`.raw.json` は表示時にだけ読む。
+解釈できない場合は自動で `.md` の解析結果に戻る。
+
 ## 構成
 
 ```text
 server.js           Express サーバと API
 src/config.js       ルートパス・ポート・ソース定義
 src/parser.js       Markdown → 会話構造への変換
+src/native.js       同名 .raw.json（会話ツリー）→ 会話構造への変換（Native 描画）
 src/indexer.js      全探索・索引構築・増分更新・.cache への永続化
 src/watcher.js      ファイル監視（変更を索引と埋め込みへ即時反映）
 src/search.js       全文検索とスニペット生成
@@ -199,7 +215,7 @@ public/             フロントエンド（依存フレームワークなし）
 | --- | --- |
 | `GET /api/stats` | 総件数・ソース別件数・期間・監視の状態（`watcher`） |
 | `GET /api/conversations?q=&sources=&from=&to=&scope=&sort=&offset=&limit=` | 検索・一覧（スニペット付き） |
-| `GET /api/conversation?id=<相対パス>` | 会話 1 件の全発言 |
+| `GET /api/conversation?id=<相対パス>` | 会話 1 件の全発言（同名 `.raw.json` があれば Native 描画、`native: true`） |
 | `GET /api/raw?id=<相対パス>` | Markdown 原文 |
 | `POST /api/ask` | 履歴への質問（SSE で回答をストリーミング） |
 | `GET /api/events` | 索引更新の SSE ストリーム（監視による変更をフロントへ通知） |

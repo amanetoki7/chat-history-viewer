@@ -350,6 +350,8 @@ html[data-theme="dark"] .date-row input::-webkit-calendar-picker-indicator { fil
   border: 1px solid currentColor;
   opacity: .95;
 }
+/* .raw.json の会話ツリーから描画していることを示すバッジ */
+.badge-native { color: var(--accent); cursor: help; }
 .ri-preview {
   font-size: 12px; color: var(--text-dim);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;

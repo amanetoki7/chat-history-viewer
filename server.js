@@ -5,6 +5,7 @@ import { CHAT_ROOT, PORT, ROOT_DIR, SOURCE_META, SOURCE_ORDER } from './src/conf
 import { ensureIndex, index, loadConversation, onIndexChange, resolveEntryPath } from './src/indexer.js';
 import { search, parseQuery, buildSnippets } from './src/search.js';
 import { splitThreadSections } from './src/parser.js';
+import { loadNativeConversation } from './src/native.js';
 import { planQueries, retrieve, answerStream } from './src/ask.js';
 import { ensureEmbeddings, embeddingsStatus } from './src/embeddings.js';
 import { startWatcher, watcherStatus } from './src/watcher.js';
@@ -107,9 +108,13 @@ app.get('/api/conversation', async (req, res) => {
   const conv = await loadConversation({ abs, relPath, title: entry.title, mtimeMs: entry.mtimeMs, size: entry.size });
   if (!conv) return res.status(500).json({ error: 'read failed' });
 
-  const turns = conv.turns.map((turn, i) => {
+  // 同名の .raw.json があれば、その会話ツリーから組み立てた turns で描画する
+  const native = await loadNativeConversation(abs, conv);
+
+  const turns = (native ? native.turns : conv.turns).map((turn, i) => {
     const base = { index: i, role: turn.role, model: turn.model, time: turn.time, chars: turn.text.length };
-    if (turn.role === 'assistant') {
+    // Sources / Related Questions の見出し分割は .md（Perplexity Threads）由来の構造にだけ適用する
+    if (!native && turn.role === 'assistant') {
       const { body, sources, related } = splitThreadSections(turn.text);
       return { ...base, text: body, sources, related };
     }
@@ -123,6 +128,7 @@ app.get('/api/conversation', async (req, res) => {
     source: conv.source,
     sourceMeta: SOURCE_META[conv.source] || SOURCE_META.unknown,
     format: conv.format,
+    native: Boolean(native),
     url: conv.url,
     favorite: conv.favorite,
     archived: conv.archived,
