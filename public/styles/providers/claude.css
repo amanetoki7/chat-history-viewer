@@ -44,14 +44,15 @@ html[data-theme="light"] .conversation[data-source="claude"] {
 .conversation[data-source="claude"] details.artifact {
   border-color: color-mix(in srgb, var(--artifact-color) 45%, transparent);
 }
-.md code {
+.conversation[data-source="claude"] .md code {
   font-family: var(--code-font); font-size: .89em;
   background: var(--code-bg); border: 1px solid var(--border-soft);
   border-radius: 5px; padding: .1em .38em;
   color: #8e2626;
 }
 
-.md pre, .md pre > code {
+.conversation[data-source="claude"] .md pre,
+.conversation[data-source="claude"] .md pre > code {
   font-family: var(--code-font); font-size: .89em;
   background: #fefdfd !important;
   border: none;
@@ -59,7 +60,7 @@ html[data-theme="light"] .conversation[data-source="claude"] {
   padding: 0;
   color: #000;
 }
-.md pre {
+.conversation[data-source="claude"] .md pre {
   border: 1px solid var(--border-soft) !important;
   border-radius: 5px;
   padding: .5em .7em;

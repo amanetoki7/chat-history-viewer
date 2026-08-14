@@ -36,7 +36,8 @@ html[data-theme="light"] .conversation[data-source="gemini"] {
   --chat-link-color: #1a73e8;
 }
 
-.md pre, .md pre > code {
+.conversation[data-source="gemini"] .md pre,
+.conversation[data-source="gemini"] .md pre > code {
   background: #141414 !important;
   color: #fff !important;
 }
