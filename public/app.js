@@ -10,7 +10,12 @@ const md = window.markdownit({
   highlight(code, lang) {
     if (lang && hljs.getLanguage(lang)) {
       try {
-        return hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
+        let html = hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
+        // hljs は var(--x) の引数をトークン化しないため、定義側（.hljs-attr）と色が揃うよう補完する
+        if (['css', 'scss', 'less'].includes(lang.toLowerCase())) {
+          html = html.replace(/<\/span>\((--[A-Za-z0-9_-]+)/g, '</span>(<span class="hljs-attr">$1</span>');
+        }
+        return html;
       } catch { /* fall through */ }
     }
     return '';

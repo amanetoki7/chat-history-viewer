@@ -128,7 +128,9 @@ html[data-theme="light"] .conversation[data-source="chatgpt"] {
 }
 /*
  * CSS の例外（本家実測）:
- *   --primary などのカスタムプロパティは紫 / url()･rgb() などの関数はオレンジ
+ *   --primary などのカスタムプロパティは定義側・var() 参照側とも紫
+ *   var()･color() などの関数名はキーワードと同じピンク（本家は url() のみオレンジだが
+ *   hljs では関数名が全て built_in になるため区別できず、多数派のピンクに寄せる）
  *   !important はキーワードと同じピンク
  */
 .conversation[data-source="chatgpt"] .md pre code.language-css .hljs-attr,
@@ -139,7 +141,7 @@ html[data-theme="light"] .conversation[data-source="chatgpt"] {
 .conversation[data-source="chatgpt"] .md pre code.language-css .hljs-built_in,
 .conversation[data-source="chatgpt"] .md pre code.language-scss .hljs-built_in,
 .conversation[data-source="chatgpt"] .md pre code.language-less .hljs-built_in {
-  color: var(--cgpt-code-number);
+  color: var(--cgpt-code-keyword);
 }
 .conversation[data-source="chatgpt"] .md pre code.language-css .hljs-meta,
 .conversation[data-source="chatgpt"] .md pre code.language-scss .hljs-meta,
