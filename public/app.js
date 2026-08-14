@@ -413,19 +413,20 @@ function setThemeSetting(value) {
 applyTheme();
 systemDarkMq.addEventListener('change', applyTheme);
 
-// 一覧ペインの開閉。広い画面は端に折りたたむ（状態を記憶）。
-// 狭い画面は一覧⇄本文の切り替えなので、本文から一覧へ戻るボタンとして働く。
+// 一覧ペインの開閉。狭い画面は本文の上にオーバーレイでスライドイン、
+// 広い画面は端に折りたたむ（状態を記憶）
 const narrowMq = window.matchMedia('(max-width: 900px)');
 if (localStorage.getItem('chv-results') === 'collapsed') document.body.classList.add('results-collapsed');
 $('#btn-menu').addEventListener('click', () => {
   if (narrowMq.matches) {
-    document.body.classList.remove('reading');
+    document.body.classList.toggle('menu-open');
     return;
   }
   const collapsed = document.body.classList.toggle('results-collapsed');
   if (collapsed) localStorage.setItem('chv-results', 'collapsed');
   else localStorage.removeItem('chv-results');
 });
+$('#scrim').addEventListener('click', () => document.body.classList.remove('menu-open'));
 
 /** ファイル監視の状態表示（緑=監視中 / 灰=オフ / 赤=停止中） */
 function watchStateHtml(watcher) {
@@ -1158,6 +1159,7 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
   state.activeId = relPath;
   el.list.querySelectorAll('.result-item').forEach((li) => li.classList.toggle('active', li.dataset.id === relPath));
   document.body.classList.add('reading');
+  document.body.classList.remove('menu-open'); // オーバーレイの一覧から選んだら閉じる
   writeHash();
 
   const scrollTop = el.reader.scrollTop;
@@ -1356,6 +1358,7 @@ function updateHitLabel() {
 
 function closeReader() {
   document.body.classList.remove('reading');
+  document.body.classList.remove('menu-open');
   if (window.innerWidth > 900) return;
   el.conversation.hidden = true;
   el.readerEmpty.hidden = false;
