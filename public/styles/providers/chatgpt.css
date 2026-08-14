@@ -103,6 +103,7 @@ html[data-theme="light"] .conversation[data-source="chatgpt"] {
 .conversation[data-source="chatgpt"] .hljs-type,
 .conversation[data-source="chatgpt"] .hljs-selector-class,
 .conversation[data-source="chatgpt"] .hljs-selector-id,
+.conversation[data-source="chatgpt"] .hljs-selector-pseudo,
 .conversation[data-source="chatgpt"] .hljs-title.class_ {
   color: var(--cgpt-code-number);
 }
@@ -114,13 +115,36 @@ html[data-theme="light"] .conversation[data-source="chatgpt"] {
 .conversation[data-source="chatgpt"] .hljs-selector-tag {
   color: var(--cgpt-code-tag);
 }
-.conversation[data-source="chatgpt"] .hljs-attr,
-.conversation[data-source="chatgpt"] .hljs-attribute {
+.conversation[data-source="chatgpt"] .hljs-attr {
   color: var(--cgpt-code-attr);
+}
+/* CSS のプロパティ名（margin: など）は本家では無色 */
+.conversation[data-source="chatgpt"] .hljs-attribute {
+  color: var(--cgpt-code-fg);
 }
 /* JSON のキーは本家では変数と同じ紫 */
 .conversation[data-source="chatgpt"] .md pre code.language-json .hljs-attr {
   color: var(--cgpt-code-variable);
+}
+/*
+ * CSS の例外（本家実測）:
+ *   --primary などのカスタムプロパティは紫 / url()･rgb() などの関数はオレンジ
+ *   !important はキーワードと同じピンク
+ */
+.conversation[data-source="chatgpt"] .md pre code.language-css .hljs-attr,
+.conversation[data-source="chatgpt"] .md pre code.language-scss .hljs-attr,
+.conversation[data-source="chatgpt"] .md pre code.language-less .hljs-attr {
+  color: var(--cgpt-code-variable);
+}
+.conversation[data-source="chatgpt"] .md pre code.language-css .hljs-built_in,
+.conversation[data-source="chatgpt"] .md pre code.language-scss .hljs-built_in,
+.conversation[data-source="chatgpt"] .md pre code.language-less .hljs-built_in {
+  color: var(--cgpt-code-number);
+}
+.conversation[data-source="chatgpt"] .md pre code.language-css .hljs-meta,
+.conversation[data-source="chatgpt"] .md pre code.language-scss .hljs-meta,
+.conversation[data-source="chatgpt"] .md pre code.language-less .hljs-meta {
+  color: var(--cgpt-code-keyword);
 }
 .conversation[data-source="chatgpt"] .hljs-link {
   color: var(--cgpt-code-tag);
