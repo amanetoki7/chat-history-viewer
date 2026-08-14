@@ -371,7 +371,7 @@ const state = {
 const SCROLL_MARGIN = 400;
 
 const el = {
-  q: $('#q'), scope: $('#scope'), sort: $('#sort'),
+  q: $('#q'), scope: $('#scope'),
   sources: $('#source-filter'),
   list: $('#result-list'), count: $('#result-count'), took: $('#result-took'), more: $('#result-more'),
   updatePill: $('#update-pill'), toast: $('#toast'),
@@ -494,13 +494,15 @@ function renderSourceFilter() {
   });
 }
 
-// モバイルのソースリストは、メニューの外を押したら閉じる
+// リスト選択（ソース・並び順・設定内）は、開いているメニューの外を押したら閉じる
 document.addEventListener('pointerdown', (ev) => {
-  if (ev.target.closest('.source-menu')) return;
-  const pop = el.sources.querySelector('.select-pop:not([hidden])');
-  if (!pop) return;
-  pop.hidden = true;
-  el.sources.querySelector('.select-btn').setAttribute('aria-expanded', 'false');
+  const within = ev.target.closest('.select-menu');
+  for (const pop of document.querySelectorAll('.select-pop:not([hidden])')) {
+    const menu = pop.closest('.select-menu');
+    if (menu === within) continue;
+    pop.hidden = true;
+    menu.querySelector('.select-btn').setAttribute('aria-expanded', 'false');
+  }
 });
 
 /** 最新の /api/stats。設定モーダルの「サーバー概要」ペインが描画に使う */
@@ -939,14 +941,14 @@ function renderSettingsTabs() {
     </button>`;
 }
 
-/** リスト選択（設定行の右側に置くドロップダウン）のマークアップ */
-function selectMenuHtml(id, labelId, options, current) {
+/** リスト選択（現在値のボタン＋チェックマーク付きメニュー）のマークアップ */
+function selectMenuHtml(id, ariaLabel, options, current) {
   const cur = options.find((o) => o.value === current);
   return `<div class="select-menu" id="${id}">
-    <button type="button" class="select-btn" aria-haspopup="listbox" aria-labelledby="${labelId}" aria-expanded="false">
+    <button type="button" class="select-btn" aria-haspopup="listbox" aria-label="${ariaLabel}" aria-expanded="false">
       <span class="select-current">${cur.label}</span>${icon('chevron-down', 14)}
     </button>
-    <div class="select-pop" role="listbox" aria-labelledby="${labelId}" hidden>
+    <div class="select-pop" role="listbox" aria-label="${ariaLabel}" hidden>
       ${options
         .map(
           (o) => `<button type="button" class="select-option" role="option" data-value="${o.value}" aria-selected="${o.value === current}">
@@ -989,13 +991,13 @@ function renderGeneralPane() {
   el.settingsPane.innerHTML = `
     <div class="settings-section-label">外観</div>
     <div class="setting-row">
-      <label id="theme-label">テーマ</label>
-      ${selectMenuHtml('theme-select', 'theme-label', THEME_OPTIONS, themeSetting())}
+      <label>テーマ</label>
+      ${selectMenuHtml('theme-select', 'テーマ', THEME_OPTIONS, themeSetting())}
     </div>
     <div class="settings-section-label">チャットの日時</div>
     <div class="setting-row">
-      <label id="time-basis-label">日時の基準</label>
-      ${selectMenuHtml('time-basis-select', 'time-basis-label', TIME_BASIS_OPTIONS, timeBasis)}
+      <label>日時の基準</label>
+      ${selectMenuHtml('time-basis-select', '日時の基準', TIME_BASIS_OPTIONS, timeBasis)}
     </div>
     <p class="settings-note">日時の基準は一覧の日付表示のほか、並び替えと期間の絞り込みにも使われます。「最後のメッセージの時刻」は多くの公式アプリと同じ並びです。</p>`;
 
@@ -1135,15 +1137,6 @@ el.settingsTabs.addEventListener('click', (ev) => {
   settingsSource = btn.dataset.id;
   renderSettingsTabs();
   renderSettingsPane();
-});
-
-// リスト選択（テーマなど）は、メニューの外を押したら閉じる
-el.settingsModal.addEventListener('pointerdown', (ev) => {
-  if (ev.target.closest('.select-menu')) return;
-  for (const pop of el.settingsModal.querySelectorAll('.select-pop:not([hidden])')) {
-    pop.hidden = true;
-    pop.closest('.select-menu').querySelector('.select-btn').setAttribute('aria-expanded', 'false');
-  }
 });
 
 /* ---------------------------------------------------------------- reader */
@@ -1575,7 +1568,25 @@ el.q.addEventListener('input', debounce(() => {
 }, 220));
 
 el.scope.addEventListener('change', () => { state.scope = el.scope.value; reload(); });
-el.sort.addEventListener('change', () => { state.sort = el.sort.value; reload(); });
+/** 並び順。結果ペインのヘッダーに置く独自ドロップダウン（#theme-select と同じ部品） */
+const SORT_OPTIONS = [
+  { value: 'relevance', label: '関連度' },
+  { value: 'newest', label: '新しい順' },
+  { value: 'oldest', label: '古い順' },
+  { value: 'longest', label: '長い順' },
+];
+
+function renderSortMenu() {
+  $('#sort-slot').innerHTML = selectMenuHtml('sort-menu', '並び順', SORT_OPTIONS, state.sort);
+  wireSelectMenu('sort-menu', (value) => {
+    if (value !== state.sort) {
+      state.sort = value;
+      reload();
+    }
+    renderSortMenu(); // 選択表示とチェックを描き直す（メニューも閉じる）
+  });
+}
+renderSortMenu();
 
 document.addEventListener('keydown', (ev) => {
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName);
