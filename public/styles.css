@@ -203,7 +203,8 @@ select:hover, .icon-btn:hover, .btn-block:hover, .chip:hover { background: var(-
 .layout {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: var(--results-w, 260px) 1fr;
+  /* 3列目はアクティビティパネル。閉じている（hidden）間は幅 0 */
+  grid-template-columns: var(--results-w, 260px) 1fr auto;
   min-height: 0;
 }
 
@@ -608,17 +609,26 @@ kbd {
   width: 14px; height: 14px; border-radius: 3px;
 }
 
+/* 本文（.turns）の右隣の列としてインライン展開する。開くと 1fr の本文が狭まる */
 .activity-panel {
-  position: fixed; top: 0; right: 0; bottom: 0; z-index: 55;
-  width: min(400px, 94vw);
+  width: min(400px, 38vw);
+  min-height: 0;
   display: flex; flex-direction: column;
   background: var(--bg-elev);
   border-left: 1px solid var(--border);
-  box-shadow: var(--shadow);
   animation: activity-in .16s ease;
 }
 @keyframes activity-in { from { transform: translateX(14px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .activity-panel { animation: none; } }
+
+/* 狭い画面は従来どおり右端のオーバーレイ */
+@media (max-width: 900px) {
+  .activity-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 55;
+    width: min(400px, 94vw);
+    box-shadow: var(--shadow);
+  }
+}
 
 .activity-head {
   display: flex; align-items: center; gap: 8px;
