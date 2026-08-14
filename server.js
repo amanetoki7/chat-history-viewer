@@ -113,7 +113,15 @@ app.get('/api/conversation', async (req, res) => {
   const native = await loadNativeConversation(abs, conv);
 
   const turns = (native ? native.turns : conv.turns).map((turn, i) => {
-    const base = { index: i, role: turn.role, model: turn.model, time: turn.time, chars: turn.text.length };
+    const base = {
+      index: i,
+      role: turn.role,
+      model: turn.model,
+      time: turn.time,
+      chars: turn.text.length,
+      // Native 描画（ChatGPT）の思考アクティビティ（「◯m ◯s考えました」ブロック）
+      reasoning: turn.reasoning || null,
+    };
     // Sources / Related Questions の見出し分割は .md（Perplexity Threads）由来の構造にだけ適用する
     if (!native && turn.role === 'assistant') {
       const { body, sources, related } = splitThreadSections(turn.text);

@@ -100,6 +100,16 @@
 
 <div class="scrim" id="scrim"></div>
 
+<!-- 思考アクティビティ。ChatGPT（Native）の「考えました」内の
+     「N件のウェブサイトを検索しました」から開く別パネル（中身は app.js が描く） -->
+<aside class="activity-panel" id="activity-panel" hidden role="complementary" aria-label="アクティビティ">
+  <div class="activity-head">
+    <h2 id="activity-title">アクティビティ</h2>
+    <button class="icon-btn" id="activity-close" title="閉じる（Esc）" aria-label="閉じる" data-icon="x" data-size="17"></button>
+  </div>
+  <div class="activity-body" id="activity-body"></div>
+</aside>
+
 <!-- 検索はポップアップ。トップバーには虫めがねだけを置き、ここに本体を持つ -->
 <div class="search-modal" id="search-modal" hidden>
   <div class="search-backdrop" id="search-backdrop"></div>

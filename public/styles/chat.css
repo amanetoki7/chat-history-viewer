@@ -331,6 +331,46 @@ details.block .block-body { padding: 2px 14px 12px; border-top: 1px solid var(--
 details.thinking > summary { color: var(--thinking-color); }
 details.artifact > summary { color: var(--artifact-color); }
 
+/* ChatGPT（Native）の「◯m ◯s考えました」。本家に合わせ、枠なしのテキストとして
+   折りたたみ、開閉マークは見出しの右に置く */
+details.reasoning {
+  margin: .2em 0 1em;
+  border: none; border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+details.reasoning > summary {
+  display: inline-flex;
+  padding: 2px 0;
+  font-size: 13px; font-weight: 550;
+  color: var(--block-summary-color);
+}
+details.reasoning > summary::before { order: 2; margin-left: 2px; }
+details.reasoning > summary:hover { background: transparent; color: var(--text); }
+details.reasoning > .block-body {
+  padding: 4px 0 0;
+  border-top: none;
+  color: var(--text-dim);
+}
+
+/* 中身の無い思考（「数秒間考えました」など）は開閉なしのラベルだけ */
+.reasoning-plain {
+  margin: .2em 0 1em;
+  font-size: 13px; font-weight: 550;
+  color: var(--block-summary-color);
+}
+
+/* 展開内の「N件のウェブサイトを検索しました」。クリックでアクティビティパネルが開く */
+.reasoning-web {
+  display: flex; align-items: center; gap: 7px;
+  margin: 10px 0 2px; padding: 6px 10px 6px 8px;
+  background: transparent; border: 0; border-radius: 8px;
+  font: inherit; font-size: 13px; color: var(--text-dim);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.reasoning-web:hover { background: var(--bg-hover); color: var(--text); }
+
 /* -------------------------------------------------------------- narrow */
 
 @media (max-width: 1180px) {

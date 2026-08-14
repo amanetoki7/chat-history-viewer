@@ -98,6 +98,58 @@ const detailsBlock = (cls, iconName, label, innerHtml, open) =>
   `<summary>${icon(iconName, 14)}<span>${escapeHtml(label)}</span></summary>` +
   `<div class="block-body md">${innerHtml}</div></details>`;
 
+/** サイトの favicon。リンクチップと同じく /favicon.ico を直接読み、読めるまで world アイコンを出す。 */
+const favIcoHtml = (domain) =>
+  `<span class="fav-ico">${icon('world', 13)}` +
+  (domain
+    ? `<img src="https://${escapeHtml(domain)}/favicon.ico" alt="" loading="lazy"` +
+      ` onload="this.previousElementSibling?.remove()" onerror="this.remove()">`
+    : '') +
+  `</span>`;
+
+/** 思考の所要時間。本家の表記（2m 43s）に合わせる。 */
+function fmtThinkDuration(sec) {
+  if (!Number.isFinite(sec) || sec <= 0) return '';
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return m ? `${m}m ${s}s` : `${s}s`;
+}
+
+/**
+ * ChatGPT（Native）の思考アクティビティを「◯m ◯s考えました」の折りたたみにする。
+ * 展開には前置きテキストと「N件のウェブサイトを検索しました」の行（1 つ目のサイトの
+ * favicon 付き。クリックでアクティビティパネルが開く）を出す。
+ * ウェブ検索の無い会話は、思考の要約と本文をそのまま展開に出す。
+ */
+function reasoningBlock(turn) {
+  const r = turn.reasoning;
+  const label = r.recap || (r.durationSec ? `${fmtThinkDuration(r.durationSec)}考えました` : '思考プロセス');
+
+  let body = r.preamble ? md.render(r.preamble) : '';
+  const rows = r.webSearches
+    .map(
+      (w) =>
+        `<button type="button" class="reasoning-web" data-turn="${turn.index}" title="アクティビティを表示">` +
+        `${favIcoHtml(w.domain)}<span>${escapeHtml(w.label)}</span></button>`
+    )
+    .join('');
+  if (rows) {
+    body += rows;
+  } else {
+    body += r.activity
+      .filter((a) => a.kind === 'thought')
+      .map((a) => md.render([a.summary && `**${a.summary}**`, a.content].filter(Boolean).join('\n\n')))
+      .join('');
+  }
+  // 中身が何も無い思考は、本家と同じくラベルだけをテキストとして出す
+  if (!body) return r.recap ? `<div class="reasoning-plain">${escapeHtml(r.recap)}</div>` : '';
+
+  return (
+    `<details class="block reasoning"><summary><span>${escapeHtml(label)}</span></summary>` +
+    `<div class="block-body md">${body}</div></details>`
+  );
+}
+
 /**
  * Claude の <antArtifact> / <antThinking> を折りたたみブロックに変換しつつ Markdown を描画する。
  */
@@ -878,6 +930,8 @@ let hitIndex = -1;
  * @param {{keepScroll?: boolean}} options keepScroll=true なら読書位置を保つ（監視による再読み込み用）
  */
 async function openConversation(relPath, focusTurn, { keepScroll = false } = {}) {
+  // アクティビティは開いていた会話のものなので、別の会話へ移るときに閉じる
+  if (relPath !== state.activeId) closeActivity();
   state.activeId = relPath;
   el.list.querySelectorAll('.result-item').forEach((li) => li.classList.toggle('active', li.dataset.id === relPath));
   document.body.classList.add('reading');
@@ -916,8 +970,12 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
           bodyText = rest;
         }
       }
+      // Native 描画の思考アクティビティ（「◯m ◯s考えました」）は本文の上に置く
+      const reasoningHtml = turn.role === 'assistant' && turn.reasoning ? reasoningBlock(turn) : '';
       const bubbleHtml =
-        bodyText.trim() || extras ? `<div class="bubble md">${renderRich(bodyText)}${extras}</div>` : '';
+        bodyText.trim() || extras || reasoningHtml
+          ? `<div class="bubble md">${reasoningHtml}${renderRich(bodyText)}${extras}</div>`
+          : '';
 
       return `<div class="turn ${turn.role}" data-turn="${turn.index}">
           <div class="turn-head">
@@ -976,6 +1034,14 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
 
   el.conversation.querySelectorAll('.turn-actions .act').forEach((btn) =>
     btn.addEventListener('click', () => runTurnAction(btn, conv))
+  );
+
+  // 「N件のウェブサイトを検索しました」→ アクティビティを別パネルで開く
+  el.conversation.querySelectorAll('.reasoning-web').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const turn = conv.turns[Number(btn.dataset.turn)];
+      if (turn?.reasoning) openActivity(turn.reasoning);
+    })
   );
 
   if (focusTurn !== null && focusTurn >= 0) {
@@ -1070,6 +1136,91 @@ function closeReader() {
   el.readerEmpty.hidden = false;
 }
 
+/* ------------------------------------------- 思考アクティビティ（別パネル） */
+
+/** アクティビティのサイトチップはここまで表示し、残りは「あと N 個」にまとめる。 */
+const ACTIVITY_CHIP_MAX = 3;
+
+const activityPanel = $('#activity-panel');
+
+function isActivityOpen() {
+  return !activityPanel.hidden;
+}
+
+function closeActivity() {
+  activityPanel.hidden = true;
+}
+
+/** 本家のアクティビティパネル相当。思考の時系列と情報源の一覧を出す。 */
+function openActivity(r) {
+  const dur = fmtThinkDuration(r.durationSec);
+  $('#activity-title').innerHTML =
+    'アクティビティ' + (dur ? `<span class="activity-duration"> · ${escapeHtml(dur)}</span>` : '');
+  $('#activity-body').innerHTML = activityHtml(r);
+  activityPanel.hidden = false;
+  $('#activity-body').scrollTop = 0;
+}
+
+const dtSource = new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+
+function activityHtml(r) {
+  let html = '<div class="activity-section">思考中</div>';
+
+  for (const item of r.activity) {
+    if (item.kind === 'search') {
+      const chips = item.domains
+        .slice(0, ACTIVITY_CHIP_MAX)
+        .map((d) => `<span class="activity-chip">${favIcoHtml(d)}<span>${escapeHtml(d)}</span></span>`)
+        .join('');
+      const over = item.domains.length - ACTIVITY_CHIP_MAX;
+      const overChip =
+        over > 0
+          ? `<span class="activity-chip">${favIcoHtml(item.domains[ACTIVITY_CHIP_MAX])}<span>あと ${over} 個</span></span>`
+          : '';
+      html += `<div class="activity-item">
+        <div class="activity-item-head">${icon('world', 14)}<span>${escapeHtml(item.title || 'ウェブを検索中')}</span></div>
+        ${chips ? `<div class="activity-chips">${chips}${overChip}</div>` : ''}
+      </div>`;
+      continue;
+    }
+    // 本家のアクティビティに合わせ、本文のある思考だけを出す（見出しだけの進捗は出さない）
+    if (!item.content) continue;
+    html += `<div class="activity-item">
+      <div class="activity-item-head"><span class="activity-dot"></span><span>${escapeHtml(item.summary)}</span></div>
+      <div class="activity-item-body md">${md.render(item.content)}</div>
+    </div>`;
+  }
+
+  if (r.recap) {
+    html += `<div class="activity-item">
+      <div class="activity-item-head">${icon('circle-check', 14)}<span>${escapeHtml(r.recap)}</span></div>
+      <div class="activity-item-body">完了</div>
+    </div>`;
+  }
+
+  if (r.sources?.length) {
+    html += `<div class="activity-section">情報源 · ${fmtInt(r.sources.length)}</div>`;
+    html += r.sources
+      .map((s) => {
+        let domain = '';
+        try {
+          domain = new URL(s.url).hostname;
+        } catch {}
+        const date = s.date ? dtSource.format(new Date(s.date)) + ' — ' : '';
+        const snippet = date + (s.snippet || '');
+        return `<a class="activity-source" href="${escapeHtml(s.url)}" target="_blank" rel="noopener">
+          <span class="activity-source-site">${favIcoHtml(domain)}<span>${escapeHtml(s.attribution || domain)}</span></span>
+          ${s.title ? `<span class="activity-source-title">${escapeHtml(s.title)}</span>` : ''}
+          ${snippet ? `<span class="activity-source-snippet">${escapeHtml(snippet)}</span>` : ''}
+        </a>`;
+      })
+      .join('');
+  }
+  return html;
+}
+
+$('#activity-close').addEventListener('click', closeActivity);
+
 /* --------------------------------------------------------------- inputs */
 
 el.q.addEventListener('input', debounce(() => {
@@ -1119,6 +1270,7 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape') {
     if (isSearchOpen()) closeSearch();
     else if (isSettingsOpen()) closeSettings();
+    else if (isActivityOpen()) closeActivity();
     else if (typing) ev.target.blur();
     else closeReader();
     return;
