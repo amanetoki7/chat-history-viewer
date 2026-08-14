@@ -15,14 +15,18 @@ let busy = false;
 
 /* ------------------------------------------------------------ theme */
 
-const savedTheme = localStorage.getItem('theme');
-if (savedTheme) document.documentElement.dataset.theme = savedTheme;
-paintThemeIcon(document.documentElement.dataset.theme);
-document.getElementById('btn-theme').addEventListener('click', () => {
-  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-  document.documentElement.dataset.theme = next;
-  localStorage.setItem('theme', next);
-  paintThemeIcon(next);
+// ビューア側の設定（chv-theme: light / dark、無ければ OS 設定）に追従する
+const themeMq = window.matchMedia('(prefers-color-scheme: dark)');
+function applyTheme() {
+  const saved = localStorage.getItem('chv-theme');
+  document.documentElement.dataset.theme =
+    saved === 'light' || saved === 'dark' ? saved : themeMq.matches ? 'dark' : 'light';
+}
+applyTheme();
+themeMq.addEventListener('change', applyTheme);
+// 別タブのビューアで設定が変わったときも追従する
+window.addEventListener('storage', (ev) => {
+  if (ev.key === 'chv-theme' || ev.key === null) applyTheme();
 });
 
 /* --------------------------------------------------------------- UI */

@@ -37,7 +37,6 @@
     </select>
     <a class="icon-btn" href="/ask" title="履歴に質問（AI）" aria-label="履歴に質問" style="text-decoration:none" data-icon="sparkles" data-size="18"></a>
     <button class="icon-btn" id="btn-settings" title="設定" aria-label="設定" aria-haspopup="dialog" data-icon="settings" data-size="18"></button>
-    <button class="icon-btn" id="btn-theme" title="テーマ切替" aria-label="テーマ切替" data-icon="sun" data-size="18"></button>
   </div>
 </header>
 
@@ -130,7 +129,7 @@
   </div>
 </div>
 
-<!-- 設定はポップアップ。プロバイダーごとの表示調整を置く（中身は app.js が描く） -->
+<!-- 設定はポップアップ。「一般」とプロバイダーごとのタブに分かれる（中身は app.js が描く） -->
 <div class="settings-modal" id="settings-modal" hidden>
   <div class="settings-backdrop" id="settings-backdrop"></div>
   <div class="settings-dialog" role="dialog" aria-modal="true" aria-label="設定">
@@ -139,17 +138,8 @@
       <h2>設定</h2>
       <button class="icon-btn" id="settings-close" title="閉じる（Esc）" aria-label="閉じる" data-icon="x" data-size="17"></button>
     </div>
-    <!-- 全プロバイダー共通の設定（選択状態は app.js が復元・保存する） -->
-    <div class="settings-global" id="settings-global">
-      <div class="settings-section-label">チャットの日時の基準</div>
-      <div role="radiogroup" aria-label="チャットの日時の基準">
-        <label class="check"><input type="radio" name="time-basis" value="last"> 最後のメッセージの時刻（多くの公式アプリと同じ並び）</label>
-        <label class="check"><input type="radio" name="time-basis" value="start"> チャットを開始した時刻</label>
-      </div>
-      <p class="settings-note">一覧の日付表示のほか、並び替えと期間の絞り込みにも使われます。</p>
-    </div>
     <div class="settings-body">
-      <nav class="settings-tabs" id="settings-tabs" aria-label="プロバイダー"></nav>
+      <nav class="settings-tabs" id="settings-tabs" aria-label="設定カテゴリー"></nav>
       <div class="settings-pane" id="settings-pane"></div>
     </div>
   </div>

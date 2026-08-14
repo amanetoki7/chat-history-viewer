@@ -386,21 +386,33 @@ const el = {
 
 /* ----------------------------------------------------------------- boot */
 
-/** テーマを適用する。コードハイライトの配色は CSS 変数（tok-*）が追従する。 */
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  paintThemeIcon(theme);
+/**
+ * テーマ。設定画面の「一般」で light / dark / system を選ぶ。
+ * localStorage に light / dark があれば固定、無ければ OS の設定に追従する。
+ */
+const THEME_KEY = 'chv-theme';
+const systemDarkMq = window.matchMedia('(prefers-color-scheme: dark)');
+
+function themeSetting() {
+  const v = localStorage.getItem(THEME_KEY);
+  return v === 'light' || v === 'dark' ? v : 'system';
 }
 
-// 明示的に選ばれていなければ OS の設定に従う
-const preferredTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-applyTheme(localStorage.getItem('chv-theme') || preferredTheme);
+/** テーマを適用する。コードハイライトの配色は CSS 変数（tok-*）が追従する。 */
+function applyTheme() {
+  const setting = themeSetting();
+  document.documentElement.dataset.theme =
+    setting === 'system' ? (systemDarkMq.matches ? 'dark' : 'light') : setting;
+}
 
-$('#btn-theme').addEventListener('click', () => {
-  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-  applyTheme(next);
-  localStorage.setItem('chv-theme', next);
-});
+function setThemeSetting(value) {
+  if (value === 'system') localStorage.removeItem(THEME_KEY);
+  else localStorage.setItem(THEME_KEY, value);
+  applyTheme();
+}
+
+applyTheme();
+systemDarkMq.addEventListener('change', applyTheme);
 
 // サイドバーの開閉。狭い画面はオーバーレイ、広い画面は端に折りたたむ（状態を記憶）
 const narrowMq = window.matchMedia('(max-width: 900px)');
@@ -768,17 +780,6 @@ let timeBasis = localStorage.getItem(TIME_BASIS_KEY) === 'start' ? 'start' : 'la
 /** 基準設定に応じた表示用日時。古い索引に lastTime が無ければ chatTime に落とす。 */
 const itemTime = (item) => (timeBasis === 'last' ? item.lastTime ?? item.chatTime : item.chatTime);
 
-for (const input of document.querySelectorAll('#settings-global input[name="time-basis"]')) {
-  input.checked = input.value === timeBasis;
-  input.addEventListener('change', () => {
-    if (!input.checked) return;
-    timeBasis = input.value;
-    localStorage.setItem(TIME_BASIS_KEY, timeBasis);
-    reload(); // 並び順・日付表示を新しい基準で読み直す
-    if (state.activeId) openConversation(state.activeId, null, { keepScroll: true });
-  });
-}
-
 /* -------------------------------------------------- 設定（プロバイダー別 UI） */
 
 /**
@@ -863,7 +864,10 @@ function readProviderDefaults(source) {
   return out;
 }
 
-let settingsSource = null; // 選択中のタブ
+/** プロバイダー ID と衝突しない「一般」タブの ID */
+const GENERAL_TAB = '__general';
+
+let settingsSource = GENERAL_TAB; // 選択中のタブ
 
 const isSettingsOpen = () => !el.settingsModal.hidden;
 
@@ -873,20 +877,75 @@ const isModified = (id) => Boolean(uiSettings[id] && Object.keys(uiSettings[id])
 
 function renderSettingsTabs() {
   const providers = settingsProviders();
-  if (!providers.some((p) => p.id === settingsSource)) settingsSource = providers[0].id;
+  if (settingsSource !== GENERAL_TAB && !providers.some((p) => p.id === settingsSource)) {
+    settingsSource = GENERAL_TAB;
+  }
 
-  el.settingsTabs.innerHTML = providers
-    .map(
-      (p) => `<button class="settings-tab${p.id === settingsSource ? ' active' : ''}" data-id="${escapeHtml(p.id)}" role="tab" aria-selected="${p.id === settingsSource}">
+  const generalActive = settingsSource === GENERAL_TAB;
+  el.settingsTabs.innerHTML =
+    `<button class="settings-tab${generalActive ? ' active' : ''}" data-id="${GENERAL_TAB}" role="tab" aria-selected="${generalActive}">
+      <span class="tab-icon" aria-hidden="true">${icon('settings', 16)}</span>
+      <span class="tab-label">一般</span>
+    </button>` +
+    providers
+      .map(
+        (p) => `<button class="settings-tab${p.id === settingsSource ? ' active' : ''}" data-id="${escapeHtml(p.id)}" role="tab" aria-selected="${p.id === settingsSource}">
         ${sourceLogo(p.id, p, false)}
         <span class="tab-label">${escapeHtml(p.label)}</span>
         ${isModified(p.id) ? '<span class="tab-dot" title="既定から変更あり"></span>' : ''}
       </button>`
-    )
-    .join('');
+      )
+      .join('');
+}
+
+/** 「一般」ペイン。テーマとチャットの日時の基準（プロバイダーに依らない設定）。 */
+function renderGeneralPane() {
+  const theme = themeSetting();
+  const themeOptions = [
+    { value: 'light', label: 'ライト' },
+    { value: 'dark', label: 'ダーク' },
+    { value: 'system', label: 'システムに従う' },
+  ];
+
+  el.settingsPane.innerHTML = `
+    <div class="settings-section-label">テーマ</div>
+    <div role="radiogroup" aria-label="テーマ">
+      ${themeOptions
+        .map(
+          (o) => `<label class="check"><input type="radio" name="theme" value="${o.value}"${o.value === theme ? ' checked' : ''}> ${o.label}</label>`
+        )
+        .join('')}
+    </div>
+    <div class="settings-section-label">チャットの日時の基準</div>
+    <div role="radiogroup" aria-label="チャットの日時の基準">
+      <label class="check"><input type="radio" name="time-basis" value="last"${timeBasis === 'last' ? ' checked' : ''}> 最後のメッセージの時刻（多くの公式アプリと同じ並び）</label>
+      <label class="check"><input type="radio" name="time-basis" value="start"${timeBasis === 'start' ? ' checked' : ''}> チャットを開始した時刻</label>
+    </div>
+    <p class="settings-note">日時の基準は一覧の日付表示のほか、並び替えと期間の絞り込みにも使われます。</p>`;
+
+  for (const input of el.settingsPane.querySelectorAll('input[name="theme"]')) {
+    input.addEventListener('change', () => {
+      if (input.checked) setThemeSetting(input.value);
+    });
+  }
+
+  for (const input of el.settingsPane.querySelectorAll('input[name="time-basis"]')) {
+    input.addEventListener('change', () => {
+      if (!input.checked) return;
+      timeBasis = input.value;
+      localStorage.setItem(TIME_BASIS_KEY, timeBasis);
+      reload(); // 並び順・日付表示を新しい基準で読み直す
+      if (state.activeId) openConversation(state.activeId, null, { keepScroll: true });
+    });
+  }
 }
 
 function renderSettingsPane() {
+  if (settingsSource === GENERAL_TAB) {
+    renderGeneralPane();
+    return;
+  }
+
   const source = settingsSource;
   const conf = uiSettings[source] || {};
   const defaults = readProviderDefaults(source);

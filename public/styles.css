@@ -25,6 +25,9 @@
   --radius: 10px;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Consolas, "Noto Sans Mono CJK JP", monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Yu Gothic UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+
+  --tip-bg: #212121;
+  --tip-bg-hover: #ffffff;
 }
 
 html[data-theme="light"] {
@@ -44,6 +47,8 @@ html[data-theme="light"] {
   --user-bg: #f3f3f3;
   --user-border: #f3f3f3;
   --shadow: 0 8px 28px rgba(20, 30, 50, .12);
+  --tip-bg: #f4f4f4;
+  --tip-bg-hover: #212121;
 }
 
 /* アイコンは Tabler Icons（outline）。実体は icons.js が流し込む */
@@ -522,19 +527,9 @@ kbd {
 .settings-head .settings-mark { color: var(--text-dim); }
 .settings-head h2 { margin: 0; flex: 1 1 auto; font-size: 14px; font-weight: 650; }
 
-/* 全プロバイダー共通の設定（タブの外に置く） */
-.settings-global {
-  flex: 0 0 auto;
-  padding: 10px 18px 12px;
-  border-bottom: 1px solid var(--border-soft);
-}
-.settings-global .settings-section-label { margin: 0 0 4px; }
-.settings-global .check { font-size: 13px; }
-.settings-global .settings-note { margin-top: 4px; }
-
 .settings-body { flex: 1 1 auto; display: flex; min-height: 0; }
 
-/* 左：プロバイダーのタブ */
+/* 左：「一般」とプロバイダーのタブ */
 .settings-tabs {
   flex: 0 0 180px;
   display: flex; flex-direction: column; gap: 2px;
@@ -551,6 +546,11 @@ kbd {
 }
 .settings-tab:hover { background: var(--bg-hover); }
 .settings-tab.active { background: var(--bg-elev-2); color: var(--text); }
+/* 「一般」タブのアイコン（プロバイダーの .src-logo と同じ幅で揃える） */
+.settings-tab .tab-icon {
+  flex: 0 0 auto; width: 16px; height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 .settings-tab .tab-label {
   flex: 1 1 auto;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -646,13 +646,13 @@ kbd {
 .activity-chip {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 2px 10px 2px 7px;
-  background: var(--bg-elev-2);
+  background: var(--tip-bg);
   /* border: 1px solid var(--border); */
   border-radius: 999px;
   font-size: 12px; color: var(--text-dim);
   cursor: pointer;
 }
-.activity-chip:hover { background: #212121; color: #fff; }
+.activity-chip:hover { background: var(--tip-bg-hover); color: var(--bg-elev); }
 
 /* 「あと N 個」で畳んだサイトチップ。押すと全チップと「表示を減らす」に切り替わる */
 button.activity-chip { border: none; font-family: inherit; cursor: pointer; }

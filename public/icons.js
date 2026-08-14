@@ -16,10 +16,6 @@ const ICONS = {
   sparkles:
     '<path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2' +
     'a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6"/>',
-  sun:
-    '<path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/>' +
-    '<path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7"/>',
-  moon: '<path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008"/>',
   x: '<path d="M18 6l-12 12"/><path d="M6 6l12 12"/>',
   'arrow-up': '<path d="M12 5l0 14"/><path d="M18 11l-6 -6"/><path d="M6 11l6 -6"/>',
   'arrow-down': '<path d="M12 5l0 14"/><path d="M18 13l-6 6"/><path d="M6 13l6 6"/>',
@@ -110,12 +106,6 @@ function paintIcons(root = document) {
   for (const node of root.querySelectorAll('[data-icon]')) {
     node.innerHTML = icon(node.dataset.icon, Number(node.dataset.size) || 17);
   }
-}
-
-/** テーマ切替ボタンは「切り替えた先」を示す（暗い→太陽 / 明るい→月）。 */
-function paintThemeIcon(theme) {
-  const btn = document.getElementById('btn-theme');
-  if (btn) btn.innerHTML = icon(theme === 'dark' ? 'sun' : 'moon', 18);
 }
 
 paintIcons();
