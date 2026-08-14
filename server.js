@@ -121,6 +121,8 @@ app.get('/api/conversation', async (req, res) => {
       chars: turn.text.length,
       // Native 描画（ChatGPT）の思考アクティビティ（「◯m ◯s考えました」ブロック）
       reasoning: turn.reasoning || null,
+      // Native 描画（ChatGPT）の記事カード（nav_list。本文の <antNavList> が参照する）
+      navLists: turn.navLists || null,
     };
     // Sources / Related Questions の見出し分割は .md（Perplexity Threads）由来の構造にだけ適用する
     if (!native && turn.role === 'assistant') {

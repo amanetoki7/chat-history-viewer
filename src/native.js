@@ -22,14 +22,33 @@ function fmtTime(sec) {
 /**
  * 本文中の引用マーカー（citeturn0search1 のような私用領域文字の並び）を
  * metadata.content_references の代替表記（Markdown リンク）へ置き換える。
+ *
+ * nav_list（回答末尾の記事カルーセル）は Markdown ではなく構造化データとして
+ * navLists へ集め、本文にはプレースホルダー `<antNavList index="N"></antNavList>`
+ * を残す（フロントが記事カードとして描画する）。
  */
-function applyContentReferences(text, refs) {
+function applyContentReferences(text, refs, navLists) {
   if (Array.isArray(refs)) {
     // sources_footnote は matched_text が空白 1 文字のことがあるため、
     // マーカー文字を含む参照だけを、長い一致から順に置換する
     const usable = refs.filter((r) => typeof r?.matched_text === 'string' && PUA_CHAR.test(r.matched_text));
     usable.sort((a, b) => b.matched_text.length - a.matched_text.length);
-    for (const ref of usable) text = text.split(ref.matched_text).join(ref.alt || '');
+    for (const ref of usable) {
+      let alt = ref.alt || '';
+      if (ref.type === 'nav_list' && Array.isArray(navLists) && Array.isArray(ref.items)) {
+        const items = ref.items
+          .filter((it) => it?.url)
+          .map((it) => ({
+            title: it.title || '',
+            url: it.url,
+            thumbnail: it.thumbnail_url || null,
+            date: Number.isFinite(it.pub_date) ? it.pub_date * 1000 : null,
+            attribution: it.attribution || '',
+          }));
+        if (items.length) alt = `\n\n<antNavList index="${navLists.push(items) - 1}"></antNavList>\n\n`;
+      }
+      text = text.split(ref.matched_text).join(alt);
+    }
   }
   // 参照に対応しないマーカーが残っても表示を汚さないよう落とす
   return text.replace(/[-]/g, '');
@@ -247,15 +266,23 @@ function buildTurns(mapping, currentNode) {
     if (msg.recipient && msg.recipient !== 'all') continue;
     if (content.content_type !== 'text' && content.content_type !== 'multimodal_text') continue;
 
-    const text = applyContentReferences(partsToText(content).text, meta.content_references);
+    const navLists = [];
+    const text = applyContentReferences(partsToText(content).text, meta.content_references, navLists);
     if (!text.trim()) continue;
     const reasoning = finishReasoning(pending, meta);
     pending = newReasoning();
 
     const prev = turns[turns.length - 1];
     if (prev?.role === 'assistant') {
-      // 本家 UI では 1 回の返信が複数メッセージに分かれることがあるため 1 ターンに束ねる
-      prev.text += '\n\n' + text;
+      // 本家 UI では 1 回の返信が複数メッセージに分かれることがあるため 1 ターンに束ねる。
+      // 記事カードのプレースホルダーは、束ねた先の並びに合わせて番号を振り直す
+      let merged = text;
+      if (navLists.length) {
+        const base = (prev.navLists ??= []).length;
+        merged = text.replace(/<antNavList index="(\d+)">/g, (_, k) => `<antNavList index="${base + Number(k)}">`);
+        prev.navLists.push(...navLists);
+      }
+      prev.text += '\n\n' + merged;
       if (reasoning) prev.reasoning = mergeReasoning(prev.reasoning, reasoning);
     } else {
       turns.push({
@@ -264,6 +291,7 @@ function buildTurns(mapping, currentNode) {
         time: fmtTime(msg.create_time),
         text,
         reasoning,
+        navLists: navLists.length ? navLists : null,
       });
     }
   }

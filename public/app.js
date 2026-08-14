@@ -150,12 +150,38 @@ function reasoningBlock(turn) {
   );
 }
 
+/** ChatGPT（Native）の記事カード（nav_list）。画像・出典元・タイトル・日付の横並びカード。 */
+function navCardsHtml(items) {
+  if (!items?.length) return '';
+  const cards = items
+    .map((it) => {
+      let domain = '';
+      try {
+        domain = new URL(it.url).hostname;
+      } catch {}
+      const date = it.date ? dtSource.format(new Date(it.date)) : '';
+      return `<a class="nav-card" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">
+        ${it.thumbnail ? `<img class="nav-card-img" src="${escapeHtml(it.thumbnail)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+        <span class="nav-card-body">
+          <span class="nav-card-site">${favIcoHtml(domain)}<span>${escapeHtml(it.attribution || domain)}</span></span>
+          <span class="nav-card-title">${escapeHtml(it.title)}</span>
+          ${date ? `<span class="nav-card-date">${escapeHtml(date)}</span>` : ''}
+        </span>
+      </a>`;
+    })
+    .join('');
+  return `<div class="nav-cards">${cards}</div>`;
+}
+
 /**
- * Claude の <antArtifact> / <antThinking> を折りたたみブロックに変換しつつ Markdown を描画する。
+ * Claude の <antArtifact> / <antThinking> を折りたたみブロックへ、
+ * ChatGPT（Native）の <antNavList>（turn.navLists への参照）を記事カードへ
+ * 変換しつつ Markdown を描画する。
  */
-function renderRich(text) {
+function renderRich(text, turn) {
   if (!text) return '';
-  const re = /<antArtifact\b([^>]*)>([\s\S]*?)<\/antArtifact>|<antThinking>([\s\S]*?)<\/antThinking>/g;
+  const re =
+    /<antArtifact\b([^>]*)>([\s\S]*?)<\/antArtifact>|<antThinking>([\s\S]*?)<\/antThinking>|<antNavList index="(\d+)"><\/antNavList>/g;
   let html = '';
   let last = 0;
   let m;
@@ -165,7 +191,9 @@ function renderRich(text) {
     if (before.trim()) html += md.render(before);
     last = m.index + m[0].length;
 
-    if (m[3] !== undefined) {
+    if (m[4] !== undefined) {
+      html += navCardsHtml(turn?.navLists?.[Number(m[4])]);
+    } else if (m[3] !== undefined) {
       html += detailsBlock('thinking', 'bulb', '思考プロセス', md.render(m[3].trim()), false);
     } else {
       const attrs = m[1] || '';
@@ -974,7 +1002,7 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
       const reasoningHtml = turn.role === 'assistant' && turn.reasoning ? reasoningBlock(turn) : '';
       const bubbleHtml =
         bodyText.trim() || extras || reasoningHtml
-          ? `<div class="bubble md">${reasoningHtml}${renderRich(bodyText)}${extras}</div>`
+          ? `<div class="bubble md">${reasoningHtml}${renderRich(bodyText, turn)}${extras}</div>`
           : '';
 
       return `<div class="turn ${turn.role}" data-turn="${turn.index}">
