@@ -203,7 +203,7 @@ select:hover, .icon-btn:hover, .btn-block:hover, .chip:hover { background: var(-
 .layout {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: var(--results-w, minmax(300px, 400px)) 1fr;
+  grid-template-columns: var(--results-w, 260px) 1fr;
   min-height: 0;
 }
 
@@ -742,7 +742,6 @@ button.activity-chip { border: none; font-family: inherit; cursor: pointer; }
 
 
 @media (max-width: 1180px) {
-  .layout { grid-template-columns: var(--results-w, minmax(280px, 340px)) 1fr; }
   .conv-head { padding: 12px 20px 10px; }
 }
 
@@ -753,7 +752,7 @@ button.activity-chip { border: none; font-family: inherit; cursor: pointer; }
   .results { border-right: none; }
   /* 本文表示中の一覧は、左端からスライドインするオーバーレイ（旧サイドバー方式） */
   body.reading .results {
-    position: absolute; inset: 0 auto 0 0; width: min(320px, 86vw); z-index: 25;
+    position: absolute; inset: 0 auto 0 0; width: min(260px, 86vw); z-index: 25;
     transform: translateX(-100%); transition: transform .2s ease;
     border-right: 1px solid var(--border);
     box-shadow: var(--shadow);
