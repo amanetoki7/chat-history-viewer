@@ -26,7 +26,8 @@ for (const rule of ['fence', 'code_block']) {
   md.renderer.rules[rule] = (tokens, idx, options, env, self) => {
     const body = base(tokens, idx, options, env, self);
     const lang = rule === 'fence' ? md.utils.unescapeAll(tokens[idx].info || '').trim().split(/\s+/)[0] : '';
-    if (!lang) return `<div class="codeblock">${body}${copyBtn()}</div>`;
+    // text はヘッダーを付けず内容だけ見せる（コピーボタンは右上に重ねる）
+    if (!lang || lang.toLowerCase() === 'text') return `<div class="codeblock">${body}${copyBtn()}</div>`;
     return (
       `<div class="codeblock has-lang"><div class="codeblock-head">` +
       `<span class="codeblock-lang">${icon('code', 13)}<span>${escapeHtml(lang)}</span></span>${copyBtn()}` +
