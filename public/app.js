@@ -17,6 +17,14 @@ const md = window.markdownit({
   },
 });
 
+/* コードブロックを .codeblock で包み、右上にコピーボタンを重ねる */
+for (const rule of ['fence', 'code_block']) {
+  const base = md.renderer.rules[rule] ?? ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options));
+  md.renderer.rules[rule] = (tokens, idx, options, env, self) =>
+    `<div class="codeblock">${base(tokens, idx, options, env, self)}` +
+    `<button class="code-copy" type="button" title="コピー" aria-label="コードをコピー">${icon('copy', 15)}</button></div>`;
+}
+
 const ARTIFACT_LANG = {
   'text/html': 'html',
   'application/vnd.ant.code': '',
@@ -757,6 +765,20 @@ async function runTurnAction(btn, conv) {
   // 編集：元の Markdown を Obsidian で開く
   location.href = 'obsidian://open?path=' + encodeURIComponent(conv.absPath);
 }
+
+/* コードブロック右上のコピーボタン（markdown 描画時に .codeblock 内へ挿入される） */
+document.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('.code-copy');
+  if (!btn) return;
+  const code = btn.closest('.codeblock').querySelector('pre code, pre');
+  await navigator.clipboard.writeText(code ? code.textContent.replace(/\n$/, '') : '');
+  btn.innerHTML = icon('check', 15);
+  btn.classList.add('done');
+  setTimeout(() => {
+    btn.innerHTML = icon('copy', 15);
+    btn.classList.remove('done');
+  }, 1200);
+});
 
 function gotoHit(delta) {
   if (!hitMarks.length) return;

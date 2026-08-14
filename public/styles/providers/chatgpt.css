@@ -30,7 +30,7 @@
 
 html[data-theme="light"] .conversation[data-source="chatgpt"] {
   --chat-bg: #fcfcfc;
-  --code-bg: #f4f4f4;
+  --code-bg: #f3f3f3;
   --block-bg: #f4f4f4;
   --user-bubble-bg: #ececec;
 }

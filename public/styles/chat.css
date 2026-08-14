@@ -175,6 +175,22 @@
   border-radius: var(--code-radius); overflow-x: auto;
 }
 .md pre code { background: none; border: none; padding: 0; font-size: 12.5px; line-height: 1.6; }
+
+/* コードブロック右上のコピーボタン（枠は .codeblock、余白は pre から引き継ぐ） */
+.md .codeblock { position: relative; margin: .9em 0; }
+.md .codeblock pre { margin: 0; }
+.md .code-copy {
+  position: absolute; top: 7px; right: 7px;
+  display: grid; place-items: center;
+  width: 28px; height: 28px; padding: 0;
+  background: var(--code-bg); border: 1px solid var(--border-soft); border-radius: 7px;
+  color: var(--text-faint); cursor: pointer;
+  opacity: 0; transition: opacity .12s, background .12s, color .12s;
+}
+.md .codeblock:hover .code-copy, .md .codeblock:focus-within .code-copy { opacity: 1; }
+.md .code-copy:hover { background: var(--bg-hover); color: var(--text); }
+.md .code-copy.done { color: var(--chat-link-color); opacity: 1; }
+@media (hover: none) { .md .code-copy { opacity: 1; } }
 .md table {
   border-collapse: collapse; margin: .9em 0;
   display: block; overflow-x: auto; max-width: 100%;
