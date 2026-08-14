@@ -729,7 +729,7 @@ button.activity-chip { border: none; font-family: inherit; cursor: pointer; }
   font-size: 13px; font-weight: 600; line-height: 1.5;
 }
 .activity-source-snippet {
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   margin-top: 2px;
   font-size: 12px; line-height: 1.55; color: var(--text-faint);
 }
@@ -772,7 +772,7 @@ button.activity-chip { border: none; font-family: inherit; cursor: pointer; }
 .cite-pop-site { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); }
 .cite-pop-title { display: block; margin-top: 3px; font-size: 13px; font-weight: 600; line-height: 1.5; }
 .cite-pop-snippet {
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   margin-top: 3px;
   font-size: 12px; line-height: 1.55; color: var(--text-faint);
 }
