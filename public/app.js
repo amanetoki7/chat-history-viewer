@@ -421,6 +421,91 @@ systemDarkMq.addEventListener('change', applyTheme);
 // 一覧ペインの開閉。狭い画面は本文の上にオーバーレイでスライドイン、
 // 広い画面は端に折りたたむ（状態を記憶）
 const narrowMq = window.matchMedia('(max-width: 900px)');
+const RESULTS_WIDTH_KEY = 'chv-results-width';
+const RESULTS_DEFAULT_WIDTH = 260;
+const RESULTS_MIN_WIDTH = 200;
+const RESULTS_MAX_WIDTH = 600;
+const READER_MIN_WIDTH = 360;
+const resultsPane = $('#results-pane');
+const resultsResizer = $('#results-resizer');
+let preferredResultsWidth = Number.parseFloat(localStorage.getItem(RESULTS_WIDTH_KEY));
+if (!Number.isFinite(preferredResultsWidth)) preferredResultsWidth = RESULTS_DEFAULT_WIDTH;
+
+function resultsWidthBounds() {
+  const max = Math.max(
+    RESULTS_MIN_WIDTH,
+    Math.min(RESULTS_MAX_WIDTH, window.innerWidth - READER_MIN_WIDTH),
+  );
+  return { min: RESULTS_MIN_WIDTH, max };
+}
+
+function clampResultsWidth(width) {
+  const { min, max } = resultsWidthBounds();
+  return Math.round(Math.min(max, Math.max(min, width)));
+}
+
+/** 保存された希望幅を、現在の画面に収まる範囲で反映する。 */
+function renderResultsWidth() {
+  const { min, max } = resultsWidthBounds();
+  const width = clampResultsWidth(preferredResultsWidth);
+  document.body.style.setProperty('--results-w', `${width}px`);
+  resultsResizer.setAttribute('aria-valuemin', String(min));
+  resultsResizer.setAttribute('aria-valuemax', String(max));
+  resultsResizer.setAttribute('aria-valuenow', String(width));
+}
+
+function setResultsWidth(width, persist = false) {
+  preferredResultsWidth = clampResultsWidth(width);
+  renderResultsWidth();
+  if (persist) localStorage.setItem(RESULTS_WIDTH_KEY, String(preferredResultsWidth));
+}
+
+let resizePointerId = null;
+let resizeStartX = 0;
+let resizeStartWidth = RESULTS_DEFAULT_WIDTH;
+
+resultsResizer.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0 || narrowMq.matches) return;
+  resizePointerId = event.pointerId;
+  resizeStartX = event.clientX;
+  resizeStartWidth = resultsPane.getBoundingClientRect().width;
+  resultsResizer.setPointerCapture(event.pointerId);
+  document.body.classList.add('results-resizing');
+  event.preventDefault();
+});
+
+resultsResizer.addEventListener('pointermove', (event) => {
+  if (event.pointerId !== resizePointerId) return;
+  setResultsWidth(resizeStartWidth + event.clientX - resizeStartX);
+});
+
+function finishResultsResize(event) {
+  if (event.pointerId !== resizePointerId) return;
+  if (resultsResizer.hasPointerCapture(event.pointerId)) {
+    resultsResizer.releasePointerCapture(event.pointerId);
+  }
+  resizePointerId = null;
+  document.body.classList.remove('results-resizing');
+  localStorage.setItem(RESULTS_WIDTH_KEY, String(preferredResultsWidth));
+}
+
+resultsResizer.addEventListener('pointerup', finishResultsResize);
+resultsResizer.addEventListener('pointercancel', finishResultsResize);
+resultsResizer.addEventListener('keydown', (event) => {
+  const current = resultsPane.getBoundingClientRect().width;
+  let next = current;
+  if (event.key === 'ArrowLeft') next -= event.shiftKey ? 48 : 16;
+  else if (event.key === 'ArrowRight') next += event.shiftKey ? 48 : 16;
+  else if (event.key === 'Home') next = resultsWidthBounds().min;
+  else if (event.key === 'End') next = resultsWidthBounds().max;
+  else return;
+  event.preventDefault();
+  setResultsWidth(next, true);
+});
+
+renderResultsWidth();
+window.addEventListener('resize', renderResultsWidth);
+
 if (localStorage.getItem('chv-results') === 'collapsed') document.body.classList.add('results-collapsed');
 $('#btn-menu').addEventListener('click', () => {
   if (narrowMq.matches) {

@@ -355,6 +355,8 @@ select:hover, .icon-btn:hover, .btn-block:hover, .chip:hover { background: var(-
   .results { overflow-x: hidden; transition: opacity .18s ease, visibility .18s; }
   body.results-collapsed { --results-w: 0px; }
   body.results-collapsed .results { opacity: 0; visibility: hidden; border-right: none; }
+  body.results-resizing { cursor: col-resize; user-select: none; }
+  body.results-resizing .layout { transition: none; }
 }
 
 /* ソースのロゴ（絞り込み・一覧の共通パーツ。画像は theme で出し分け） */
@@ -422,11 +424,31 @@ html[data-theme="dark"] .src-logo[data-source="chatgpt"] { background-image: url
 /* --------------------------------------------------------------- results */
 
 .results {
+  position: relative;
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
   min-height: 0; min-width: 0;
   background: var(--bg);
 }
+
+/* 一覧と本文の境界。広い画面ではドラッグ、または矢印キーで幅を調整できる。 */
+.results-resizer {
+  position: absolute; inset: 0 0 0 auto; z-index: 5;
+  width: 7px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.results-resizer::after {
+  content: "";
+  position: absolute; inset: 0 0 0 auto;
+  width: 2px;
+  background: transparent;
+  transition: background .12s;
+}
+.results-resizer:hover::after,
+.results-resizer:focus-visible::after,
+body.results-resizing .results-resizer::after { background: var(--accent); }
 
 .results-head {
   flex: 0 0 auto;
@@ -967,6 +989,7 @@ button.activity-chip { border: none; font-family: inherit; cursor: pointer; }
 @media (max-width: 900px) {
   .layout { grid-template-columns: minmax(0, 1fr); position: relative; }
   .results { border-right: none; }
+  .results-resizer { display: none; }
   /* 本文表示中の一覧は、左端からスライドインするオーバーレイ（旧サイドバー方式） */
   body.reading .results {
     position: absolute; inset: 0 auto 0 0; width: min(260px, 86vw); z-index: 25;
