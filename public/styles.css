@@ -583,6 +583,25 @@ kbd {
 .select-option .opt-label { flex: 1 1 auto; white-space: nowrap; }
 .select-option .opt-check { flex: 0 0 16px; display: inline-flex; justify-content: center; }
 
+/* トグルスイッチ。設定行の右端に置く on/off（role="switch" の aria-checked で状態を持つ） */
+.switch {
+  flex: 0 0 auto; margin-left: auto;
+  width: 36px; height: 20px; padding: 0;
+  display: flex; align-items: center;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border); border-radius: 999px;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.switch:hover { border-color: var(--text-faint); }
+.switch-thumb {
+  width: 14px; height: 14px; margin-left: 2px;
+  background: var(--text-faint); border-radius: 50%;
+  transition: transform .12s, background .12s;
+}
+.switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.switch[aria-checked="true"] .switch-thumb { transform: translateX(16px); background: #fff; }
+
 .settings-pane .btn-block {
   display: flex; align-items: center; justify-content: center; gap: 6px;
   margin-top: 16px;

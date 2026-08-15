@@ -644,7 +644,7 @@ function sourceLogo(id, meta, labelled = true) {
 /** 行の中身の HTML。差分検出の署名も兼ねる（liHtmlCache と比較して変化した行だけ書き換える） */
 function itemHtml(item) {
   const meta = sourceMetaOf(item.source);
-  const snippets = (item.snippets || [])
+  const snippets = (showSnippets ? item.snippets || [] : [])
     .map(
       (s) =>
         `<div class="ri-snippet" data-turn="${s.turnIndex}">` +
@@ -689,6 +689,15 @@ function patchItem(li, item) {
     liHtmlCache.set(li, html);
   }
   li.classList.toggle('active', item.relPath === state.activeId);
+}
+
+/** 表示設定を変えたときに、読み込み直さず今ある行だけ描き直す */
+function repaintItems() {
+  const byId = new Map(state.items.map((it) => [it.relPath, it]));
+  for (const li of el.list.children) {
+    const item = byId.get(li.dataset.id);
+    if (item) patchItem(li, item);
+  }
 }
 
 function renderItems(items) {
@@ -846,6 +855,19 @@ let timeBasis = localStorage.getItem(TIME_BASIS_KEY) === 'start' ? 'start' : 'la
 
 /** 基準設定に応じた表示用日時。古い索引に lastTime が無ければ chatTime に落とす。 */
 const itemTime = (item) => (timeBasis === 'last' ? item.lastTime ?? item.chatTime : item.chatTime);
+
+/**
+ * 検索結果の一覧にハイライト行（一致した発言の抜粋）を出すか。設定画面の「一般」で切り替える。
+ * 既定は表示。オフにすると抜粋を描かないので、一覧はタイトル中心のコンパクトな見た目になる。
+ */
+const SHOW_SNIPPETS_KEY = 'chv-show-snippets';
+let showSnippets = localStorage.getItem(SHOW_SNIPPETS_KEY) !== '0';
+
+function setShowSnippets(on) {
+  showSnippets = on;
+  if (on) localStorage.removeItem(SHOW_SNIPPETS_KEY);
+  else localStorage.setItem(SHOW_SNIPPETS_KEY, '0');
+}
 
 /* -------------------------------------------------- 設定（プロバイダー別 UI） */
 
@@ -1009,6 +1031,19 @@ function wireSelectMenu(id, onSelect) {
   }
 }
 
+/** on/off のトグルスイッチのマークアップ */
+function switchHtml(id, ariaLabel, on) {
+  return `<button type="button" class="switch" id="${id}" role="switch" aria-checked="${on}" aria-label="${ariaLabel}">
+    <span class="switch-thumb"></span>
+  </button>`;
+}
+
+/** トグルスイッチの配線。押すたびに onToggle(切り替えた後の値) を呼ぶ */
+function wireSwitch(id, onToggle) {
+  const btn = $(`#${id}`);
+  btn.addEventListener('click', () => onToggle(btn.getAttribute('aria-checked') !== 'true'));
+}
+
 const THEME_OPTIONS = [
   { value: 'system', label: 'システム' },
   { value: 'dark', label: 'ダーク' },
@@ -1028,6 +1063,12 @@ function renderGeneralPane() {
       <label>テーマ</label>
       ${selectMenuHtml('theme-select', 'テーマ', THEME_OPTIONS, themeSetting())}
     </div>
+    <div class="settings-section-label">検索結果</div>
+    <div class="setting-row">
+      <label>ハイライト行</label>
+      ${switchHtml('snippets-switch', 'ハイライト行を表示', showSnippets)}
+    </div>
+    <p class="settings-note">オフにすると、一致した発言の抜粋（ハイライト行）を一覧に出しません。</p>
     <div class="settings-section-label">チャットの日時</div>
     <div class="setting-row">
       <label>日時の基準</label>
@@ -1038,6 +1079,12 @@ function renderGeneralPane() {
   wireSelectMenu('theme-select', (value) => {
     setThemeSetting(value);
     renderGeneralPane(); // 選択表示とチェックを描き直す（メニューも閉じる）
+  });
+
+  wireSwitch('snippets-switch', (on) => {
+    setShowSnippets(on);
+    repaintItems(); // 抜粋の有無だけの変更なので読み込み直さない
+    renderGeneralPane();
   });
 
   wireSelectMenu('time-basis-select', (value) => {
