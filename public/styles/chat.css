@@ -58,6 +58,7 @@ html[data-theme="light"] {
   --user-align: flex-end;
   --user-bubble-bg: var(--user-bg);
   --user-bubble-border: var(--user-border);
+  --user-bubble-color: inherit;       /* 吹き出しが濃い色のとき（ChatGPT の黒など）に使う */
   --user-bubble-max-width: 78%;
 
   --assistant-align: stretch;
@@ -152,6 +153,7 @@ html[data-theme="light"] {
   max-width: var(--user-bubble-max-width);
   background: var(--user-bubble-bg);
   border-color: var(--user-bubble-border);
+  color: var(--user-bubble-color);
   border-bottom-right-radius: var(--bubble-tail-radius);
 }
 

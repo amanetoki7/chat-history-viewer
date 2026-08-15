@@ -45,6 +45,90 @@
   --tok-invalid: #ff8583;             /* red-200: 削除・不正 */
 }
 
+/*
+ * アクセントカラー（本家の「設定 → アクセントカラー」）。
+ *
+ * app.js が選択値を <html data-accent-chatgpt="purple"> のように属性で置く。
+ * 「デフォルト」は属性なし＝上のグレーの吹き出しのまま。
+ *
+ * 値は chatgpt.com の実測（2026-08、配布 CSS の :root / .dark ブロックから）。
+ * 本家は色ごとに大量の変数を持つが、このビューアが描くのは設定の色見本と
+ * 自分の発言の吹き出しだけなので、使うのは色見本＋吹き出しの 2 テーマ分。
+ *
+ *   --cgpt-swatch-<色>    = --accent-<色>                    … 設定メニューの色見本
+ *   --cgpt-msg-bg/-text   = --<色>-theme-user-msg-* (.dark)  … ダークの吹き出し
+ *   --cgpt-msg-*-light    = --<色>-theme-user-msg-* (:root)  … ライトの吹き出し
+ *
+ * 本家は同じ色を display-p3 の直値と色スケール（styles.css）の両方で書くが、
+ * 後勝ちで効くのはスケールの方なので、ここは全部スケール参照で揃える。
+ */
+
+/* 色見本。本家の --accent-<色> は各スケールの 400（紫だけ 300、デフォルトはグレー） */
+:root {
+  --cgpt-swatch-default: #8f8f8f;
+  --cgpt-swatch-blue:    var(--blue-400);
+  --cgpt-swatch-green:   var(--green-400);
+  --cgpt-swatch-yellow:  var(--yellow-400);
+  --cgpt-swatch-pink:    var(--pink-400);
+  --cgpt-swatch-orange:  var(--orange-400);
+  --cgpt-swatch-purple:  var(--purple-300);
+  --cgpt-swatch-black:   var(--black); /* 黒は本家の --accent-* に無い */
+}
+
+/* どの色もダークは -700 の地に -25 の文字、ライトは -50 の地に -900 の文字 */
+html[data-accent-chatgpt="blue"] {
+  --cgpt-msg-bg:         var(--blue-700);
+  --cgpt-msg-text:       var(--blue-25);
+  --cgpt-msg-bg-light:   var(--blue-50);
+  --cgpt-msg-text-light: var(--blue-900);
+}
+html[data-accent-chatgpt="green"] {
+  --cgpt-msg-bg:         var(--green-700);
+  --cgpt-msg-text:       var(--green-25);
+  --cgpt-msg-bg-light:   var(--green-50);
+  --cgpt-msg-text-light: var(--green-900);
+}
+html[data-accent-chatgpt="yellow"] {
+  --cgpt-msg-bg:         var(--yellow-700);
+  --cgpt-msg-text:       var(--yellow-25);
+  --cgpt-msg-bg-light:   var(--yellow-50);
+  --cgpt-msg-text-light: var(--yellow-900);
+}
+html[data-accent-chatgpt="pink"] {
+  --cgpt-msg-bg:         var(--pink-700);
+  --cgpt-msg-text:       var(--pink-25);
+  --cgpt-msg-bg-light:   var(--pink-50);
+  --cgpt-msg-text-light: var(--pink-900);
+}
+html[data-accent-chatgpt="orange"] {
+  --cgpt-msg-bg:         var(--orange-700);
+  --cgpt-msg-text:       var(--orange-25);
+  --cgpt-msg-bg-light:   var(--orange-50);
+  --cgpt-msg-text-light: var(--orange-900);
+}
+html[data-accent-chatgpt="purple"] {
+  --cgpt-msg-bg:         var(--purple-700);
+  --cgpt-msg-text:       var(--purple-25);
+  --cgpt-msg-bg-light:   var(--purple-50);
+  --cgpt-msg-text-light: var(--purple-900);
+}
+/*
+ * 黒だけグレースケールで、地のテーマと明暗が逆になる。
+ * ダークは明るい吹き出し＋黒文字、ライトは真っ黒の吹き出し＋白文字。
+ */
+html[data-accent-chatgpt="black"] {
+  --cgpt-msg-bg:         var(--gray-100);
+  --cgpt-msg-text:       var(--black);
+  --cgpt-msg-bg-light:   var(--black);
+  --cgpt-msg-text-light: var(--white);
+}
+
+/* ダークは本家の --<色>-theme-user-msg-* をそのまま */
+html[data-accent-chatgpt] .conversation[data-source="chatgpt"] {
+  --user-bubble-bg: var(--cgpt-msg-bg);
+  --user-bubble-color: var(--cgpt-msg-text);
+}
+
 html[data-theme="light"] .conversation[data-source="chatgpt"] {
   --chat-bg: #fcfcfc;
   --code-bg: #f3f3f3;
@@ -61,4 +145,18 @@ html[data-theme="light"] .conversation[data-source="chatgpt"] {
   --tok-tag: #1f4e94;                 /* blue-600 */
   --tok-attr: #b8802b;                /* yellow-600 */
   --tok-invalid: #ba2623;             /* red-600 */
+}
+
+/* ライト（上のライト既定より後に置いて上書きする） */
+html[data-theme="light"][data-accent-chatgpt] .conversation[data-source="chatgpt"] {
+  --user-bubble-bg: var(--cgpt-msg-bg-light);
+  --user-bubble-color: var(--cgpt-msg-text-light);
+}
+
+/*
+ * 黒は吹き出しだけ明暗が反転するので、地と逆の文字色を継いだインラインコードが
+ * 読めなくなる。コードブロック（pre）は自前で --tok-fg を持つので影響しない。
+ */
+html[data-accent-chatgpt="black"] .conversation[data-source="chatgpt"] .turn.user .md code {
+  color: var(--tok-fg);
 }

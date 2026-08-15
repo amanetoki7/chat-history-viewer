@@ -892,6 +892,34 @@ const UI_TOGGLES = [
   { key: 'showPreview', label: '一覧にプレビューを表示', selector: '.ri-preview', display: '-webkit-box' },
 ];
 
+/**
+ * アクセントカラー（本家 ChatGPT の「設定 → アクセントカラー」に相当）。
+ * プロバイダーごとに用意でき、今は ChatGPT のみ。dot は選択メニューに出す色見本。
+ *
+ * 選んだ色は他の項目のような CSS 変数の注入ではなく、<html> の
+ * data-accent-<source> 属性として置く。見た目は styles/providers/*.css が
+ * この属性で切り替え、後から JS で読むときは accentOf(source) で取れる。
+ * 「デフォルト」は属性を持たない状態（＝プロバイダー CSS の既定色）。
+ */
+const UI_ACCENTS = {
+  chatgpt: [
+    // dot の実値は styles/providers/chatgpt.css の --cgpt-swatch-*（本家の --accent-<色>）
+    { value: 'default', label: 'デフォルト', dot: 'var(--cgpt-swatch-default)' },
+    { value: 'blue', label: '青', dot: 'var(--cgpt-swatch-blue)' },
+    { value: 'green', label: '緑', dot: 'var(--cgpt-swatch-green)' },
+    { value: 'yellow', label: '黄', dot: 'var(--cgpt-swatch-yellow)' },
+    { value: 'pink', label: 'ピンク', dot: 'var(--cgpt-swatch-pink)' },
+    { value: 'orange', label: 'オレンジ', dot: 'var(--cgpt-swatch-orange)' },
+    { value: 'purple', label: '紫', dot: 'var(--cgpt-swatch-purple)' },
+    { value: 'black', label: '黒', dot: 'var(--cgpt-swatch-black)' },
+  ],
+};
+
+const accentAttr = (source) => `data-accent-${source}`;
+
+/** 現在のアクセントカラー。未設定なら 'default'（属性なし） */
+const accentOf = (source) => document.documentElement.getAttribute(accentAttr(source)) || 'default';
+
 /** stats が読めていないあいだのタブ用（並びは src/config.js の SOURCE_META と同じ） */
 const FALLBACK_PROVIDERS = [
   { id: 'chatgpt', label: 'ChatGPT', color: '#10a37f' },
@@ -924,6 +952,13 @@ function applyUiSettings() {
     }
   }
   uiStyle.textContent = css.join('\n');
+
+  // アクセントカラーだけは属性で持つ（CSS からも後からの読み出しからも参照できる）
+  for (const source of Object.keys(UI_ACCENTS)) {
+    const value = uiSettings[source]?.accent;
+    if (value && value !== 'default') document.documentElement.setAttribute(accentAttr(source), value);
+    else document.documentElement.removeAttribute(accentAttr(source));
+  }
 }
 
 function saveUiSettings() {
@@ -1152,13 +1187,42 @@ function renderSettingsPane() {
     (t) => `<label class="check"><input type="checkbox" data-key="${t.key}"${conf[t.key] ? ' checked' : ''}> ${t.label}</label>`
   ).join('');
 
+  // アクセントカラー（持っているプロバイダーだけ）。色見本付きのリスト選択
+  const accents = UI_ACCENTS[source];
+  const accentRow = accents
+    ? `<div class="settings-section-label">外観</div>
+    <div class="setting-row">
+      <label>アクセントカラー</label>
+      ${selectMenuHtml(
+        'accent-select',
+        'アクセントカラー',
+        accents.map((a) => ({
+          value: a.value,
+          label: `<span class="accent-dot" style="background:${a.dot}"></span>${a.label}`,
+        })),
+        conf.accent || 'default'
+      )}
+    </div>`
+    : '';
+
   el.settingsPane.innerHTML = `
+    ${accentRow}
     <div class="settings-section-label">チャット表示</div>
     ${sliders}
     <div class="settings-section-label">一覧の行</div>
     ${toggles}
     <button class="btn-block" id="settings-reset">${icon('arrow-back-up', 14)}このプロバイダーを既定に戻す</button>
     <p class="settings-note">設定はこのブラウザに保存され、すぐに反映されます。会話を開いたまま調整できます。</p>`;
+
+  if (accents) {
+    wireSelectMenu('accent-select', (value) => {
+      if (value === 'default') delete uiSettings[source]?.accent;
+      else (uiSettings[source] ??= {}).accent = value;
+      saveUiSettings(); // 属性の付け外しも applyUiSettings が行う
+      renderSettingsTabs();
+      renderSettingsPane(); // 選択表示とチェックを描き直す（メニューも閉じる）
+    });
+  }
 
   for (const f of UI_FIELDS) {
     const row = el.settingsPane.querySelector(`.setting-row[data-key="${f.key}"]`);
