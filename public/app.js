@@ -653,9 +653,7 @@ function renderItems(items) {
     li.innerHTML = `
       <div class="ri-head">
         ${sourceLogo(item.source, meta)}
-        <span class="ri-title">${highlightText(item.title, state.terms)}</span>
-        ${state.terms.length ? `<span class="ri-score" title="検索スコア">${fmtInt(item.score || 0)}</span>` : ''}
-        ${item.favorite ? `<span class="ri-star" title="お気に入り">${icon('star-filled', 13)}</span>` : ''}
+        <span class="ri-title">${highlightText(item.title, state.terms)}</span>        ${item.favorite ? `<span class="ri-star" title="お気に入り">${icon('star-filled', 13)}</span>` : ''}
       </div>
       <div class="ri-meta">
         <span>${fmtDate(itemTime(item))}</span>
