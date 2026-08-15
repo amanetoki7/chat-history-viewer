@@ -268,8 +268,6 @@ html[data-theme="dark"] .src-logo[data-source="chatgpt"] { background-image: url
 @media (max-width: 900px) {
   .source-pills { display: none; }
   .source-filter .source-menu { display: block; margin-left: 60px; }
-  /* 更新ピルが出ている間は左が詰まるので、右寄せの余白は無しにする */
-  .update-pill:not([hidden]) ~ .source-filter .source-menu { margin-left: 0; }
 }
 
 .check { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; user-select: none; }
@@ -383,26 +381,32 @@ mark { background: var(--mark-bg); color: var(--mark-text); border-radius: 2px; 
 
 /* ------------------------------------------- 更新の即時反映（ファイル監視） */
 
-/* 一覧をその場で差し替えられない状況（スクロール中・検索中）で出す。
-   topbar のブランドとソース絞り込みの間（左寄せ）に置く */
-.update-pill {
+/* 更新があってまだ読んでいない会話の印（タイトル右端の青い丸ドット）。
+   開くと消える。開いている会話はプレビューをスクロールすると消える */
+.ri-dot {
   flex: none;
-  display: inline-flex; align-items: center; gap: 4px;
-  white-space: nowrap;
-  padding: 2px 9px;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font: inherit; font-size: 11px; font-weight: 600;
-  cursor: pointer;
-  animation: pill-pop .18s ease-out;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  animation: ri-dot-in .25s ease-out;
+  transition: opacity .35s ease, transform .35s ease;
 }
-.update-pill:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
-@keyframes pill-pop { from { opacity: 0; transform: translateY(-4px); } }
-/* 狭い画面は文言を省き、更新マークと件数だけにする */
-@media (max-width: 900px) {
-  .update-pill .pill-text { display: none; }
+@keyframes ri-dot-in { from { opacity: 0; transform: scale(.4); } }
+.ri-dot.is-clearing { opacity: 0; transform: scale(.4); }
+
+/* 一覧の差分反映: 並びが変わった既存の行は FLIP で新しい位置へ滑る（app.js が
+   transform で古い位置に置いてから、このクラスを付けて 0 へ戻す） */
+.result-item.ri-flip { transition: transform .3s cubic-bezier(.2, .72, .26, 1); }
+
+/* 挿入された行: 隣の行の移動で余白が開いてから、少し遅れてふわっと現れる */
+.result-item.ri-enter { animation: ri-enter .26s ease-out .14s backwards; }
+@keyframes ri-enter { from { opacity: 0; transform: translateY(-4px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .result-item.ri-flip { transition: none; }
+  .result-item.ri-enter { animation: none; }
+  .ri-dot { animation: none; transition: none; }
 }
 
 /* 監視による更新の通知 */
@@ -428,7 +432,7 @@ mark { background: var(--mark-bg); color: var(--mark-text); border-radius: 2px; 
 .watch-state.is-error .watch-dot { background: #e5484d; }
 
 @media (prefers-reduced-motion: reduce) {
-  .update-pill, .toast { animation: none; }
+  .toast { animation: none; }
 }
 
 /* --------------------------------------------------------- reader（枠） */

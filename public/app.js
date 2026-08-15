@@ -379,7 +379,7 @@ const el = {
   q: $('#q'), scope: $('#scope'),
   sources: $('#source-filter'),
   list: $('#result-list'), count: $('#result-count'), took: $('#result-took'), more: $('#result-more'),
-  updatePill: $('#update-pill'), toast: $('#toast'),
+  toast: $('#toast'),
   reader: $('#reader'), conversation: $('#conversation'), readerEmpty: $('#reader-empty'),
   hint: $('#search-hint'),
   btnSearch: $('#btn-search'), modal: $('#search-modal'),
@@ -528,7 +528,7 @@ async function loadStats() {
 
 /* --------------------------------------------------------------- search */
 
-function buildQuery(offset) {
+function buildQuery(offset, limit = state.limit) {
   const p = new URLSearchParams();
   if (state.q) p.set('q', state.q);
   if (state.sources.size) p.set('sources', [...state.sources].join(','));
@@ -540,7 +540,7 @@ function buildQuery(offset) {
   p.set('sort', state.sort);
   p.set('basis', timeBasis);
   p.set('offset', String(offset));
-  p.set('limit', String(state.limit));
+  p.set('limit', String(limit));
   return p.toString();
 }
 
@@ -566,18 +566,27 @@ async function reload() {
   await fetchPage(true);
 }
 
+/** 一覧見出しの件数表記（差分更新でも件数だけはここで更新する） */
+function renderResultCount(took) {
+  el.count.textContent = state.total
+    ? `${fmtInt(state.total)} 件${state.q ? ' が一致' : ''}`
+    : state.q
+    ? '一致する会話はありません'
+    : '会話がありません';
+  if (took != null) el.took.textContent = `${took} ms`;
+}
+
 /**
  * 一覧を読み込む。
  * @param {boolean} reset 先頭から読み直すか
- * @param {{quiet?: boolean}} options quiet=true なら「検索中…」を出さずに差し替える（監視による自動更新用）
  */
-async function fetchPage(reset, { quiet = false } = {}) {
+async function fetchPage(reset) {
   if (state.loading) return;
   state.loading = true;
   state.loadingMore = !reset;
   const seq = ++state.seq;
 
-  if (reset && !quiet) {
+  if (reset) {
     el.count.textContent = '検索中…';
     el.took.textContent = '';
   }
@@ -596,12 +605,7 @@ async function fetchPage(reset, { quiet = false } = {}) {
     if (reset) el.list.innerHTML = '';
     renderItems(data.items);
 
-    el.count.textContent = state.total
-      ? `${fmtInt(state.total)} 件${state.q ? ' が一致' : ''}`
-      : state.q
-      ? '一致する会話はありません'
-      : '会話がありません';
-    el.took.textContent = `${data.took} ms`;
+    renderResultCount(data.took);
     if (isSearchOpen()) renderSearchList();
     ok = true;
   } catch (err) {
@@ -611,6 +615,11 @@ async function fetchPage(reset, { quiet = false } = {}) {
     state.loading = false;
     state.loadingMore = false;
     renderMore();
+    // 読み込み中に監視の更新が届いていたら、落ち着いたところで差分を取り直す
+    if (listRefreshQueued) {
+      listRefreshQueued = false;
+      scheduleListRefresh();
+    }
     if (ok) autoLoadIfShort(); // 失敗時は無限リトライにならないよう見送る
   }
 }
@@ -632,37 +641,59 @@ function sourceLogo(id, meta, labelled = true) {
   return `<span class="src-logo${hasLogo ? '' : ' is-dot'}" data-source="${escapeHtml(id)}"${a11y}${style}></span>`;
 }
 
-function renderItems(items) {
-  const frag = document.createDocumentFragment();
-  for (const item of items) {
-    const meta = sourceMetaOf(item.source);
-    const li = document.createElement('li');
-    li.className = 'result-item' + (item.relPath === state.activeId ? ' active' : '');
-    li.dataset.id = item.relPath;
-    li.dataset.source = item.source; // styles/providers/*.css から行の見た目を差し替えられる
+/** 行の中身の HTML。差分検出の署名も兼ねる（liHtmlCache と比較して変化した行だけ書き換える） */
+function itemHtml(item) {
+  const meta = sourceMetaOf(item.source);
+  const snippets = (item.snippets || [])
+    .map(
+      (s) =>
+        `<div class="ri-snippet" data-turn="${s.turnIndex}">` +
+        `<span class="who">${s.role === 'user' ? '自分' : s.role === 'title' ? 'タイトル' : 'AI'}</span>` +
+        `${highlightText(s.text, state.terms)}</div>`
+    )
+    .join('');
 
-    const snippets = (item.snippets || [])
-      .map(
-        (s) =>
-          `<div class="ri-snippet" data-turn="${s.turnIndex}">` +
-          `<span class="who">${s.role === 'user' ? '自分' : s.role === 'title' ? 'タイトル' : 'AI'}</span>` +
-          `${highlightText(s.text, state.terms)}</div>`
-      )
-      .join('');
-
-    li.innerHTML = `
+  return `
       <div class="ri-head">
         ${sourceLogo(item.source, meta)}
         <span class="ri-title">${highlightText(item.title, state.terms)}</span>        ${item.favorite ? `<span class="ri-star" title="お気に入り">${icon('star-filled', 13)}</span>` : ''}
+        ${updatedDots.has(item.relPath) ? `<span class="ri-dot" title="更新があります"></span>` : ''}
       </div>
       <div class="ri-meta">
         <span>${fmtDate(itemTime(item))}</span>
         <span>${fmtInt(item.turnCount)} 発言</span>
       </div>
       ${snippets || `<div class="ri-preview">${highlightText(item.preview, state.terms)}</div>`}`;
+}
 
-    frag.appendChild(li);
+/** li → 描画済み HTML（差分検出用の署名）。行を作り直さず変化だけを反映するために持つ */
+const liHtmlCache = new WeakMap();
+
+function buildItem(item) {
+  const li = document.createElement('li');
+  li.className = 'result-item' + (item.relPath === state.activeId ? ' active' : '');
+  li.dataset.id = item.relPath;
+  li.dataset.source = item.source; // styles/providers/*.css から行の見た目を差し替えられる
+  const html = itemHtml(item);
+  li.innerHTML = html;
+  liHtmlCache.set(li, html);
+  return li;
+}
+
+/** 既存の行を作り直さずに内容だけ最新化する（変化が無ければ何もしない） */
+function patchItem(li, item) {
+  if (li.dataset.source !== item.source) li.dataset.source = item.source;
+  const html = itemHtml(item);
+  if (liHtmlCache.get(li) !== html) {
+    li.innerHTML = html;
+    liHtmlCache.set(li, html);
   }
+  li.classList.toggle('active', item.relPath === state.activeId);
+}
+
+function renderItems(items) {
+  const frag = document.createDocumentFragment();
+  for (const item of items) frag.appendChild(buildItem(item));
   el.list.appendChild(frag);
 }
 
@@ -1213,6 +1244,7 @@ const setReaderScroll = (top) => el.reader.scrollTo({ top, behavior: 'instant' }
 async function openConversation(relPath, focusTurn, { keepScroll = false } = {}) {
   // アクティビティは開いていた会話のものなので、別の会話へ移るときに閉じる
   if (relPath !== state.activeId) closeActivity();
+  clearUpdatedDot(relPath); // 開いたら「更新あり」の青ドットは消える
   state.activeId = relPath;
   el.list.querySelectorAll('.result-item').forEach((li) => li.classList.toggle('active', li.dataset.id === relPath));
   document.body.classList.add('reading');
@@ -1808,11 +1840,13 @@ document.addEventListener('keydown', (ev) => {
 
 /**
  * サーバはファイルの追加・変更・削除を監視していて、索引へ反映するたびに
- * /api/events（SSE）で知らせてくる。ここではそれを画面へ映す。
+ * /api/events（SSE）で知らせてくる。ここではそれを自動で画面へ映す。
  *
- *   - 開いている会話が変わった  … 読書位置を保ったまま読み直す
- *   - 一覧が先頭・上端にある     … そのまま差し替える
- *   - それ以外                   … 「N 件の更新」を出し、押されたら読み直す
+ *   - チャットプレビューは絶対に再描画しない。開いている会話が更新されたら
+ *     一覧の行に青いドットを付けるだけ（プレビューをスクロールすると消える）
+ *   - 一覧は現在の検索条件のまま静かに取り直し、差分だけを DOM へ反映する。
+ *     見えている範囲への追加は、隣の行が滑って余白を作ってから現れる。
+ *     見えていない範囲の変化は無音で同期し、件数の表記だけを更新する
  */
 
 let toastTimer = null;
@@ -1826,55 +1860,225 @@ function showToast(text, { iconName = 'refresh', warn = false, ms = 3200 } = {})
   if (ms) toastTimer = setTimeout(() => (el.toast.hidden = true), ms);
 }
 
-let pendingUpdates = 0;
-
-function showUpdatePill(count) {
-  pendingUpdates += count;
-  el.updatePill.innerHTML = icon('refresh', 12) + (pendingUpdates
-    ? `${fmtInt(pendingUpdates)}<span class="pill-text">件の更新</span>`
-    : '<span class="pill-text">更新があります</span>');
-  el.updatePill.hidden = false;
-}
-
-function hideUpdatePill() {
-  pendingUpdates = 0;
-  el.updatePill.hidden = true;
-}
-
-/** 一覧をその場で差し替えてよいか（先頭ページを上端で見ているときだけ）。 */
-function canAutoRefreshList() {
-  return !state.loading && !isSearchOpen() && state.offset <= state.limit && el.list.scrollTop < 40;
-}
-
 const refreshStats = debounce(() => loadStats().catch(() => {}), 1200);
 
-async function onIndexChanged(detail) {
-  const changes = detail.changes || [];
-  const mine = state.activeId ? changes.find((c) => c.relPath === state.activeId) : null;
+/* --------------------------------- 更新ドット（未読の更新を知らせる青い丸） */
 
-  if (mine && mine.kind === 'removed') {
-    showToast('この会話のファイルは削除されました', { iconName: 'trash', warn: true, ms: 0 });
-  } else if (state.activeId && (mine || detail.truncated)) {
-    // truncated（全再構築など）のときは、開いている会話も変わったとみなして読み直す
-    await openConversation(state.activeId, null, { keepScroll: true });
-    if (mine) showToast('開いている会話を更新しました');
-  }
+/** 更新があってまだ読まれていない会話の relPath。itemHtml が行の右端にドットを描く */
+const updatedDots = new Set();
 
-  refreshStats();
+function listItemOf(relPath) {
+  return [...el.list.children].find((li) => li.dataset.id === relPath) || null;
+}
 
-  if (canAutoRefreshList()) {
-    hideUpdatePill();
-    await fetchPage(true, { quiet: true });
-  } else {
-    showUpdatePill(detail.added + detail.updated + detail.removed);
+/**
+ * ドットを消す。会話を開いたとき、また既に開いている会話なら
+ * プレビューをスクロールしたとき（＝読んだとき）に呼ばれる。
+ */
+function clearUpdatedDot(relPath) {
+  if (!updatedDots.delete(relPath)) return;
+  const li = listItemOf(relPath);
+  const dot = li?.querySelector('.ri-dot');
+  if (dot) {
+    dot.classList.add('is-clearing');
+    setTimeout(() => dot.remove(), 400);
+    // ドット無しの HTML を署名に置き直し、次の差分反映で行ごと書き換わらないようにする
+    const item = state.items.find((it) => it.relPath === relPath);
+    if (item) liHtmlCache.set(li, itemHtml(item));
   }
 }
 
-el.updatePill.addEventListener('click', () => {
-  hideUpdatePill();
-  el.list.scrollTop = 0; // 新しいものを見るための操作なので先頭へ戻す
-  reload();
-});
+// 開いている会話のドットは、プレビューのスクロールで「読んだ」とみなして消す
+el.reader.addEventListener(
+  'scroll',
+  () => {
+    if (state.activeId && updatedDots.has(state.activeId)) clearUpdatedDot(state.activeId);
+  },
+  { passive: true }
+);
+
+/* ------------------------------------------ 一覧の差分反映（再描画しない） */
+
+/** 差分で追いかける読み込み済み範囲の上限。超えたら件数の表記だけを更新する */
+const DIFF_WINDOW_MAX = 300;
+/** 1 回の反映でアニメーションを付ける新規行の上限。大量更新は音もなく揃える */
+const ANIMATE_MAX = 20;
+
+let listRefreshTimer = null;
+/** fetchPage 実行中に更新が届いたときの覚え書き（終わってから差分を取り直す） */
+let listRefreshQueued = false;
+
+/** 連続イベントを少し束ねてから一覧の差分を取り直す */
+function scheduleListRefresh() {
+  clearTimeout(listRefreshTimer);
+  listRefreshTimer = setTimeout(() => {
+    listRefreshTimer = null;
+    runListRefresh().catch((err) => console.error(err));
+  }, 250);
+}
+
+/** 読み込み済みの範囲を先頭から取り直す（API の limit 上限 100 を跨いでページを繋ぐ） */
+async function fetchListWindow(count) {
+  const want = Math.min(Math.max(count, state.limit), DIFF_WINDOW_MAX);
+  const items = [];
+  let total = 0;
+  let terms = [];
+  let took = 0;
+  while (items.length < want) {
+    const limit = Math.min(100, want - items.length);
+    const data = await fetch('/api/conversations?' + buildQuery(items.length, limit)).then((r) => r.json());
+    total = data.total;
+    terms = data.terms;
+    took += data.took;
+    items.push(...data.items);
+    if (items.length >= total || data.items.length < limit) break;
+  }
+  return { items, total, terms, took };
+}
+
+async function runListRefresh() {
+  if (state.loading) {
+    listRefreshQueued = true; // fetchPage の finally が取り直す
+    return;
+  }
+  const seq = state.seq;
+
+  // 大量に読み込んでいるときは並びの同期を見送り、件数の表記だけを最新にする
+  if (state.items.length > DIFF_WINDOW_MAX) {
+    const data = await fetch('/api/conversations?' + buildQuery(0, 1)).then((r) => r.json());
+    if (seq !== state.seq || state.loading) return;
+    state.total = data.total;
+    renderResultCount(data.took);
+    renderMore();
+    return;
+  }
+
+  const data = await fetchListWindow(state.items.length);
+  if (seq !== state.seq || state.loading) return; // 取得中にユーザー操作で読み直された
+  applyListDiff(data);
+}
+
+/**
+ * 一覧を再描画せずに、新しい検索結果との差分だけを DOM へ反映する。
+ *
+ *   - 既存の行は DOM ノードを作り直さず、内容が変わった行だけ書き換える
+ *   - 並びが変わった行は FLIP（transform）で新しい位置へ滑らせる。行の挿入では
+ *     下の行が滑って余白が開き、その中へ新しい行がふわっと現れる
+ *   - 画面に見えていない範囲の増減はスクロール位置を補正して無音で同期し、
+ *     見た目は一切動かさない（件数の表記だけが変わる）
+ */
+function applyListDiff({ items: fresh, total, terms, took }) {
+  state.total = total;
+  state.terms = terms;
+
+  const listEl = el.list;
+  const prev = [...listEl.children];
+  const byId = new Map(prev.map((li) => [li.dataset.id, li]));
+
+  // First: 移動アニメーションのために現在位置を覚えておく
+  const scrollTop = listEl.scrollTop;
+  const viewH = listEl.clientHeight;
+  const oldTop = new Map();
+  for (const li of prev) oldTop.set(li, li.offsetTop);
+  // スクロール補正の基準行 = いま画面に掛かっている最初の行
+  const anchor = prev.find((li) => li.offsetTop + li.offsetHeight > scrollTop) || null;
+
+  // DOM を新しい並びへ揃える（既存ノードは移動、新規は生成、消えた行は取り除く）
+  const entering = new Set();
+  let ref = listEl.firstElementChild;
+  for (const item of fresh) {
+    let li = byId.get(item.relPath);
+    if (li) {
+      byId.delete(item.relPath);
+      patchItem(li, item);
+    } else {
+      li = buildItem(item);
+      entering.add(li);
+    }
+    if (li === ref) ref = ref.nextElementSibling;
+    else listEl.insertBefore(li, ref);
+  }
+  for (const li of byId.values()) li.remove(); // 結果から消えた行
+
+  state.items = fresh;
+  state.offset = fresh.length;
+  // キーボードカーソルは行に付いたまま動くので、位置だけ数え直す
+  const cursorLi = listEl.querySelector('.result-item.cursor');
+  state.cursor = cursorLi ? [...listEl.children].indexOf(cursorLi) : -1;
+
+  // 画面より上での増減ぶんスクロールを送り、見えている行を絶対に動かさない
+  // （上端で見ているときは補正せず、新しい行がアニメーションで入ってくる）
+  let scrollAdj = 0;
+  if (anchor && anchor.isConnected && scrollTop > 4) {
+    const want = scrollTop + (anchor.offsetTop - oldTop.get(anchor));
+    if (want !== scrollTop) {
+      listEl.scrollTop = want;
+      scrollAdj = listEl.scrollTop - scrollTop; // 端で clamp された実際の移動量
+    }
+  }
+
+  // Invert & Play: 画面の近くで位置が変わった行だけを、古い位置から新しい位置へ滑らせる
+  const animate = !document.hidden && entering.size <= ANIMATE_MAX;
+  const nearTop = listEl.scrollTop - viewH;
+  const nearBottom = listEl.scrollTop + viewH * 2;
+  const moving = [];
+  if (animate) {
+    for (const li of listEl.children) {
+      const top = li.offsetTop;
+      if (top < nearTop || top > nearBottom) continue; // 画面から遠い行は瞬時に揃える
+      if (entering.has(li)) {
+        li.classList.add('ri-enter');
+        continue;
+      }
+      const from = oldTop.get(li);
+      if (from == null) continue;
+      const delta = from - top + scrollAdj; // 補正後の見た目上の移動量
+      if (Math.abs(delta) < 1) continue;
+      li.style.transform = `translateY(${delta}px)`;
+      moving.push(li);
+    }
+  }
+  if (moving.length) {
+    void listEl.offsetHeight; // 開始位置の transform を確定させてから遷移する
+    requestAnimationFrame(() => {
+      for (const li of moving) {
+        li.classList.add('ri-flip');
+        li.style.transform = '';
+      }
+    });
+  }
+  if (moving.length || entering.size) {
+    setTimeout(() => {
+      for (const li of moving) li.classList.remove('ri-flip');
+      for (const li of entering) li.classList.remove('ri-enter');
+    }, 500);
+  }
+
+  renderResultCount(took);
+  renderMore();
+  if (isSearchOpen()) renderSearchList();
+  autoLoadIfShort();
+}
+
+/* ------------------------------------------------------- SSE イベント処理 */
+
+function onIndexChanged(detail) {
+  const changes = detail.changes || [];
+
+  // 開いている会話のプレビューには触らない。ファイルごと消えたときだけ知らせる
+  const mine = state.activeId ? changes.find((c) => c.relPath === state.activeId) : null;
+  if (mine && mine.kind === 'removed') {
+    showToast('この会話のファイルは削除されました', { iconName: 'trash', warn: true, ms: 0 });
+  }
+
+  // 追加・更新された会話に青いドットを付ける（開くと消える）
+  for (const c of changes) {
+    if (c.kind !== 'removed') updatedDots.add(c.relPath);
+  }
+
+  refreshStats(); // ソース内訳・サーバー概要の件数
+  scheduleListRefresh(); // 一覧は再描画せず差分だけを反映する
+}
 
 function startLiveUpdates() {
   if (!window.EventSource) return;
@@ -1882,11 +2086,10 @@ function startLiveUpdates() {
   let connected = false;
 
   events.addEventListener('hello', () => {
-    // 2 回目以降は再接続。切れている間の変更があるかもしれないので確認する
+    // 2 回目以降は再接続。切れている間の変更があるかもしれないので差分を取り直す
     if (connected) {
       refreshStats();
-      if (canAutoRefreshList()) fetchPage(true, { quiet: true });
-      else showUpdatePill(0);
+      scheduleListRefresh();
     }
     connected = true;
   });
