@@ -219,6 +219,8 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* iOS スタンドアロンでホームインジケーターと重ならないようにする */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* ---------------------------------------------------------------- topbar */
@@ -228,7 +230,11 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 10px 16px;
+  /* iOS スタンドアロン（ノッチ下まで描画される）でステータスバーを避ける */
+  padding: calc(10px + env(safe-area-inset-top, 0px))
+           calc(16px + env(safe-area-inset-right, 0px))
+           10px
+           calc(16px + env(safe-area-inset-left, 0px));
   background: var(--bg-elev);
   border-bottom: 1px solid var(--border);
   z-index: 30;
@@ -347,6 +353,9 @@ select:hover, .icon-btn:hover, .btn-block:hover, .chip:hover { background: var(-
   /* 3列目はアクティビティパネル。閉じている（hidden）間は幅 0 */
   grid-template-columns: var(--results-w, 260px) 1fr auto;
   min-height: 0;
+  /* iOS 横向き（viewport-fit=cover）でノッチに本文が食い込まないようにする */
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 /* 一覧ペインの折りたたみ（広い画面のみ。狭い画面は一覧⇄本文の切り替え） */

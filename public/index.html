@@ -2,9 +2,19 @@
 <html lang="ja" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AI Chat History Viewer</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236ea8fe' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10'/><path d='M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2'/></svg>">
+
+<!-- PWA。テーマ色は起動時とテーマ切り替え時に app.js がトップバー色へ合わせ直す -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#161920">
+<meta name="mobile-web-app-capable" content="yes">
+<!-- iOS はホーム画面追加を apple-* メタで判定する（manifest の display は見ない） -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AI Chats">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="/styles.css">
 <!-- 「履歴に質問」モーダル（本体は ask.js が描く） -->
 <link rel="stylesheet" href="/styles/ask.css">
@@ -197,5 +207,12 @@
 <script src="/app.js"></script>
 <!-- module として読み、app.js とトップレベルの識別子（el, md など）が衝突しないようにする -->
 <script type="module" src="/ask.js"></script>
+<script>
+// PWA: Service Worker の登録。LAN の IP（http://192.168.x.x）で開いた場合は
+// secure context でないため navigator.serviceWorker が無く、静かにスキップされる
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+</script>
 </body>
 </html>

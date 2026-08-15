@@ -405,8 +405,11 @@ function themeSetting() {
 /** テーマを適用する。コードハイライトの配色は CSS 変数（tok-*）が追従する。 */
 function applyTheme() {
   const setting = themeSetting();
-  document.documentElement.dataset.theme =
-    setting === 'system' ? (systemDarkMq.matches ? 'dark' : 'light') : setting;
+  const mode = setting === 'system' ? (systemDarkMq.matches ? 'dark' : 'light') : setting;
+  document.documentElement.dataset.theme = mode;
+  // PWA のウィンドウ枠・ステータスバー色をトップバー（--bg-elev）に合わせる
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (themeColor) themeColor.content = mode === 'dark' ? '#161920' : '#ffffff';
 }
 
 function setThemeSetting(value) {
