@@ -366,9 +366,8 @@ select:hover, .icon-btn:hover, .btn-block:hover, .chip:hover { background: var(-
 .src-logo[data-source="chatgpt"] { background-image: url("images/OpenAI-black-monoblossom.svg"); background-size: 150%; }
 html[data-theme="dark"] .src-logo[data-source="chatgpt"] { background-image: url("images/OpenAI-white-monoblossom.svg"); }
 .src-logo[data-source="claude"] { background-image: url("images/Claude_AI_symbol.svg"); }
-/* AI モードは Gemini と同じロゴを使う */
-.src-logo[data-source="gemini"],
-.src-logo[data-source="google_ai_mode"] { background-image: url("images/Google_Gemini_icon_2025.svg"); }
+.src-logo[data-source="gemini"] { background-image: url("images/Google_Gemini_icon_2025.svg"); }
+.src-logo[data-source="google_ai_mode"] { background-image: url("images/google-color.svg"); }
 .src-logo[data-source="perplexity"] { background-image: url("images/perplexity-color.svg"); }
 
 /* topbar 中央のソース絞り込み。広い画面はピルの横並び、
