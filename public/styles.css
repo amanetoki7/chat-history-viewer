@@ -785,6 +785,45 @@ kbd {
 }
 .settings-note { margin: 10px 0 0; font-size: 11px; color: var(--text-faint); }
 
+/* GitHub 風ヒートマップ（サーバー概要・プロバイダー別のアクティビティ）
+   マスの色は --hm-color（style 属性で入る）と空マス色の混色なので両テーマ対応 */
+.heatmap {
+  --hm-cell: 9px;
+  --hm-gap: 2px;
+  --hm-empty: var(--bg-elev-2);
+  display: flex; gap: 5px;
+  margin-top: 6px;
+}
+.hm-days {
+  flex: none;
+  display: grid; grid-template-rows: repeat(7, var(--hm-cell)); gap: var(--hm-gap);
+  padding-top: 16px; /* 月ラベル行のぶん下げてマスと行を揃える */
+  font-size: 9px; line-height: var(--hm-cell); color: var(--text-faint);
+}
+.hm-scroll { flex: 1 1 auto; min-width: 0; overflow-x: auto; padding-bottom: 4px; }
+.hm-months {
+  display: grid; gap: var(--hm-gap);
+  height: 14px; margin-bottom: 2px;
+  font-size: 9px; color: var(--text-faint); white-space: nowrap;
+}
+.hm-grid {
+  display: grid; grid-auto-flow: column;
+  grid-template-rows: repeat(7, var(--hm-cell));
+  grid-auto-columns: var(--hm-cell);
+  gap: var(--hm-gap);
+  width: max-content;
+}
+.hm-cell {
+  border-radius: 2px;
+  background: var(--hm-empty);
+  box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .12);
+}
+.hm-cell[data-level="1"] { background: color-mix(in srgb, var(--hm-color) 30%, var(--hm-empty)); }
+.hm-cell[data-level="2"] { background: color-mix(in srgb, var(--hm-color) 55%, var(--hm-empty)); }
+.hm-cell[data-level="3"] { background: color-mix(in srgb, var(--hm-color) 78%, var(--hm-empty)); }
+.hm-cell[data-level="4"] { background: var(--hm-color); }
+.hm-note { margin-top: 4px; }
+
 @media (max-width: 640px) {
   .settings-dialog { margin-top: 5vh; height: 86vh; }
   .settings-body { flex-direction: column; }

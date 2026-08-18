@@ -1249,6 +1249,71 @@ function renderGeneralPane() {
   });
 }
 
+/* ---------- GitHub 風ヒートマップ（サーバー概要・プロバイダー別のアクティビティ） */
+
+/** サーバーの activity と同じ形式の日付キー（ローカル時刻で 'YYYY-MM-DD'） */
+function heatDayKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * 過去 1 年（今日まで、週は日曜はじまり）の日別会話数を GitHub 風に描く。
+ * counts は /api/stats の activity と同じ { 'YYYY-MM-DD': 件数 }。
+ * 色の濃さは表示範囲の最大値に対する比率で 4 段階（0 件は空マス）。
+ */
+function heatmapHtml(counts, color) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(today);
+  start.setDate(start.getDate() - 364);
+  start.setDate(start.getDate() - start.getDay()); // 直前の日曜まで戻して列を揃える
+
+  const days = [];
+  let total = 0;
+  let max = 0;
+  for (const d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+    const count = counts[heatDayKey(d)] || 0;
+    days.push({ date: new Date(d), count });
+    total += count;
+    if (count > max) max = count;
+  }
+
+  const cells = days
+    .map(({ date, count }) => {
+      const level = count === 0 ? 0 : Math.max(1, Math.ceil((count / max) * 4));
+      const label = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}: ${count} 件`;
+      return `<span class="hm-cell" data-level="${level}" title="${label}"></span>`;
+    })
+    .join('');
+
+  // 月ラベル。週（列）の先頭の日曜で月が替わった列にだけ置く
+  const weeks = Math.ceil(days.length / 7);
+  let prevMonth = -1;
+  let months = '';
+  for (let w = 0; w < weeks; w++) {
+    const d = days[w * 7].date;
+    if (d.getMonth() !== prevMonth) {
+      months += `<span style="grid-column:${w + 1}">${d.getMonth() + 1}月</span>`;
+      prevMonth = d.getMonth();
+    }
+  }
+
+  return `
+    <div class="heatmap" style="--hm-color:${color}">
+      <div class="hm-days" aria-hidden="true"><span></span><span>月</span><span></span><span>水</span><span></span><span>金</span><span></span></div>
+      <div class="hm-scroll">
+        <div class="hm-months" style="grid-template-columns:repeat(${weeks}, var(--hm-cell))">${months}</div>
+        <div class="hm-grid">${cells}</div>
+      </div>
+    </div>
+    <p class="settings-note hm-note">過去 1 年の会話 ${fmtInt(total)} 件（チャット開始日で集計）</p>`;
+}
+
+/** ペイン描画後に呼び、ヒートマップを右端（今日）までスクロールしておく */
+function scrollHeatmaps() {
+  for (const sc of el.settingsPane.querySelectorAll('.hm-scroll')) sc.scrollLeft = sc.scrollWidth;
+}
+
 /** 「サーバー概要」ペイン。索引の統計・監視状態と再構築ボタン（旧サイドバーの統計）。 */
 function renderStatsPane() {
   if (!serverStats) {
@@ -1256,6 +1321,13 @@ function renderStatsPane() {
     return;
   }
   const s = serverStats;
+
+  // 全プロバイダー合算の日別件数
+  const totalCounts = {};
+  for (const bucket of Object.values(s.activity || {})) {
+    for (const [day, n] of Object.entries(bucket)) totalCounts[day] = (totalCounts[day] || 0) + n;
+  }
+
   el.settingsPane.innerHTML = `
     <div class="settings-section-label">サーバー概要</div>
     <div class="server-stats">
@@ -1265,7 +1337,11 @@ function renderStatsPane() {
       <div class="root">${escapeHtml(s.root)}</div>
       ${watchStateHtml(s.watcher)}
     </div>
+    <div class="settings-section-label">アクティビティ</div>
+    ${heatmapHtml(totalCounts, '#3fb950')}
     <button class="btn-block" id="btn-reindex">索引を再構築</button>`;
+
+  scrollHeatmaps();
 
   $('#btn-reindex').addEventListener('click', async (ev) => {
     ev.target.disabled = true;
@@ -1321,7 +1397,15 @@ function renderSettingsPane() {
     </div>`
     : '';
 
+  // このプロバイダーのアクティビティ（統計が未取得のあいだは出さない）
+  const meta = settingsProviders().find((p) => p.id === source);
+  const heatmapRow = serverStats
+    ? `<div class="settings-section-label">アクティビティ</div>
+    ${heatmapHtml(serverStats.activity?.[source] || {}, meta?.color || '#8a8f98')}`
+    : '';
+
   el.settingsPane.innerHTML = `
+    ${heatmapRow}
     ${accentRow}
     <div class="settings-section-label">チャット表示</div>
     ${sliders}
@@ -1329,6 +1413,8 @@ function renderSettingsPane() {
     ${toggles}
     <button class="btn-block" id="settings-reset">${icon('arrow-back-up', 14)}このプロバイダーを既定に戻す</button>
     <p class="settings-note">設定はこのブラウザに保存され、すぐに反映されます。会話を開いたまま調整できます。</p>`;
+
+  scrollHeatmaps();
 
   if (accents) {
     wireSelectMenu('accent-select', (value) => {

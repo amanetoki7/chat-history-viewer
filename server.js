@@ -33,8 +33,15 @@ function sourceRank(id) {
   return i === -1 ? SOURCE_ORDER.length : i;
 }
 
+/** ヒートマップ用の日付キー（サーバーのローカル時刻で 'YYYY-MM-DD'） */
+function dayKey(time) {
+  const d = new Date(time);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 app.get('/api/stats', (_req, res) => {
   const bySource = new Map();
+  const activity = {}; // { source: { 'YYYY-MM-DD': チャット開始日ごとの会話数 } }
   let earliest = Infinity;
   let latest = -Infinity;
   let totalTurns = 0;
@@ -45,6 +52,9 @@ app.get('/api/stats', (_req, res) => {
     if (e.chatTime) {
       if (e.chatTime < earliest) earliest = e.chatTime;
       if (e.chatTime > latest) latest = e.chatTime;
+      const bucket = (activity[e.source] ??= {});
+      const k = dayKey(e.chatTime);
+      bucket[k] = (bucket[k] || 0) + 1;
     }
     totalTurns += e.turnCount;
     totalChars += e.chars;
@@ -61,6 +71,7 @@ app.get('/api/stats', (_req, res) => {
     watcher: watcherStatus(),
     earliest: Number.isFinite(earliest) ? earliest : null,
     latest: Number.isFinite(latest) ? latest : null,
+    activity,
     sources: [...bySource.entries()]
       .map(([id, count]) => ({ id, count, ...(SOURCE_META[id] || SOURCE_META.unknown) }))
       .sort((a, b) => sourceRank(a.id) - sourceRank(b.id) || b.count - a.count),
