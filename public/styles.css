@@ -225,12 +225,22 @@ body {
   position: fixed;
   inset: 0;
   overscroll-behavior: none;
-  /* さらにレイアウトビューポートの高さ自体がセーフエリアを引いた古い値で
-     固まることがあるため、app.js が visualViewport の実測値を入れて上書きする
-     （top+height 指定で inset の bottom は無効になり、実測の高さが勝つ） */
-  height: var(--app-height, 100%);
   /* iOS スタンドアロンでホームインジケーターと重ならないようにする */
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* iOS スタンドアロン PWA では dvh がキーボード・回転・復帰で縮んだまま
+   戻らない既知問題（WebKit 218983）があるため、standalone では lvh を
+   安定した最大高さとして使う（SO 78669293 の回避策）。それでも縮みが
+   固着した場合は app.js が --app-height（画面実寸）で上書きして治す。
+   top と height の同時指定により inset の bottom は無視され height が勝つ */
+@supports (height: 100dvh) {
+  body { height: var(--app-height, 100dvh); }
+}
+@media all and (display-mode: standalone) {
+  @supports (height: 100lvh) {
+    body { height: var(--app-height, 100lvh); }
+  }
 }
 
 /* ---------------------------------------------------------------- topbar */

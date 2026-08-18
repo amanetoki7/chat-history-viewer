@@ -509,28 +509,42 @@ resultsResizer.addEventListener('keydown', (event) => {
 renderResultsWidth();
 window.addEventListener('resize', renderResultsWidth);
 
-/* iOS スタンドアロン PWA のビューポート補正。
-   1) レイアウトビューポートの高さがセーフエリアを引いた古い値のまま固まり、
-      画面下部が使えない帯として残ることがある → visualViewport の実測値を
-      --app-height に入れて body の高さを実際の可視領域に合わせる。
-   2) ソフトキーボードの開閉や回転の後にレイアウトビューポートがスクロール
-      したまま戻らず、画面全体が縦にずれることがある → キーボードが閉じた
-      状態でずれが残っていたら原点へ戻す。 */
-if (window.visualViewport) {
+/* iOS スタンドアロン PWA のビューポート補正（SO 78669293 / WebKit 218983）。
+   高さの基準は CSS 側（dvh、standalone は lvh）に任せ、JS は「治す」だけ:
+   1) キーボード・回転・復帰の後にビューポートが縮んだまま固着したら、
+      画面実寸から求めた高さを --app-height に入れて上書きする。
+      visualViewport.height 自体も固着することがあるため基準にしない。
+   2) レイアウトビューポートがスクロールしたまま戻らないずれは原点へ戻す。
+   タッチ端末の standalone 起動時のみ有効（デスクトップはウィンドウ可変なので対象外）。 */
+if (
+  window.visualViewport &&
+  (matchMedia('(display-mode: standalone)').matches || navigator.standalone === true) &&
+  matchMedia('(pointer: coarse)').matches
+) {
   const vv = window.visualViewport;
-  const syncViewport = () => {
-    // ピンチズーム中は可視高さが縮んで見えるだけなので高さには反映しない
-    if (vv.scale <= 1.01) {
-      document.documentElement.style.setProperty('--app-height', `${Math.round(vv.height)}px`);
+  // iOS の screen.width/height は回転しても入れ替わらない（常に縦持ち基準）ため、
+  // 現在の向きから「本来のビューポート全高」を求める
+  const expectedHeight = () =>
+    matchMedia('(orientation: portrait)').matches
+      ? Math.max(screen.width, screen.height)
+      : Math.min(screen.width, screen.height);
+  const healViewport = () => {
+    const shrink = expectedHeight() - window.innerHeight;
+    if (shrink > 150) return; // キーボード表示中とみなし iOS に任せる
+    if (shrink > 4) {
+      document.documentElement.style.setProperty('--app-height', `${expectedHeight()}px`);
+    } else {
+      document.documentElement.style.removeProperty('--app-height'); // 正常なら CSS(lvh) に戻す
     }
-    const keyboardOpen = vv.height < window.innerHeight - 1;
-    if (!keyboardOpen && (window.scrollY !== 0 || vv.offsetTop !== 0)) window.scrollTo(0, 0);
+    if (window.scrollY !== 0 || vv.offsetTop !== 0) window.scrollTo(0, 0);
   };
-  vv.addEventListener('resize', syncViewport);
-  vv.addEventListener('scroll', syncViewport);
-  window.addEventListener('pageshow', syncViewport);
-  window.addEventListener('orientationchange', syncViewport);
-  syncViewport();
+  vv.addEventListener('resize', healViewport);
+  vv.addEventListener('scroll', healViewport);
+  window.addEventListener('pageshow', healViewport);
+  window.addEventListener('orientationchange', () => setTimeout(healViewport, 60));
+  // キーボードを閉じた直後は resize が発火しないことがあるため blur 後にも実行
+  document.addEventListener('focusout', () => setTimeout(healViewport, 150));
+  healViewport();
 }
 
 if (localStorage.getItem('chv-results') === 'collapsed') document.body.classList.add('results-collapsed');
