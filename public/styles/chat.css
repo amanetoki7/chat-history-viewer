@@ -171,7 +171,7 @@ html[data-theme="light"] {
 .turn-attachments {
   display: grid;
   gap: 6px;
-  width: var(--user-bubble-max-width);
+  width: 40%;
   margin-bottom: 6px;
 }
 .turn-attachments.cols-1 { grid-template-columns: 1fr; }
@@ -182,7 +182,7 @@ html[data-theme="light"] {
 .turn .turn-attachments img {
   display: block;
   width: 100%;
-  border-radius: var(--attachment-radius, 12px);
+  /* border-radius: var(--attachment-radius, 12px); */
   cursor: zoom-in;
 }
 /* 1枚のときは元画像のアスペクト比のまま。複数のときは中央から 1:1 に切り抜く */
