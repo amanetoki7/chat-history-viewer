@@ -1025,6 +1025,23 @@ button.activity-chip { border: none; font-family: inherit; cursor: pointer; }
   font-size: 12px; line-height: 1.55; color: var(--text-faint);
 }
 
+/* ------------------------------------------- 添付画像フルサイズプレビュー */
+
+.imgview-modal { position: fixed; inset: 0; z-index: 70; }
+.imgview-backdrop { position: absolute; inset: 0; background: #000c; cursor: zoom-out; }
+.imgview-img {
+  position: absolute; inset: 0; margin: auto;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  animation: search-pop .12s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .imgview-img { animation: none; }
+}
+.imgview-close { position: absolute; top: 14px; right: 14px; }
+
 /* -------------------------------------------------------------- narrow */
 
 

@@ -1506,7 +1506,9 @@ function renderTurnHtml(turn, conv) {
   if (conv.source === 'chatgpt' && turn.role === 'user') {
     const { images, rest } = splitAttachments(turn.text);
     if (images.length) {
-      attachmentsHtml = `<div class="turn-attachments md">${md.render(images.join('\n\n'))}</div>`;
+      // 1枚=1列 / 2枚=2列 / 3枚以上=3列（CSS グリッドが4枚目以降を自動で折り返す）
+      const cols = Math.min(images.length, 3);
+      attachmentsHtml = `<div class="turn-attachments md cols-${cols}">${md.render(images.join('\n\n'))}</div>`;
       bodyText = rest;
     }
   }
@@ -1773,6 +1775,11 @@ el.conversation.addEventListener('click', (ev) => {
     runTurnAction(act, activeConv);
     return;
   }
+  const attImg = ev.target.closest('.turn-attachments img');
+  if (attImg) {
+    openImageView(attImg);
+    return;
+  }
   const web = ev.target.closest('.reasoning-web');
   if (web) {
     const turn = activeConv.turns[Number(web.dataset.turn)];
@@ -1793,6 +1800,28 @@ document.addEventListener('click', async (ev) => {
     btn.classList.remove('done');
   }, 1200);
 });
+
+/* ------------------------------------------- 添付画像のフルサイズプレビュー */
+
+const imgViewModal = $('#imgview-modal');
+const imgViewImg = $('#imgview-img');
+const isImgViewOpen = () => !imgViewModal.hidden;
+
+/** 添付のサムネイル（1:1 切り抜き）をタップしたとき、フル画像を重ねて表示する */
+function openImageView(img) {
+  imgViewImg.src = img.currentSrc || img.src;
+  imgViewImg.alt = img.alt || '';
+  imgViewModal.hidden = false;
+}
+
+function closeImageView() {
+  if (!isImgViewOpen()) return;
+  imgViewModal.hidden = true;
+  imgViewImg.removeAttribute('src'); // 次を開いたとき前の画像が一瞬見えないように
+}
+
+$('#imgview-close').addEventListener('click', closeImageView);
+$('#imgview-backdrop').addEventListener('click', closeImageView);
 
 function gotoHit(delta) {
   if (!hitMarks.length) return;
@@ -2113,7 +2142,8 @@ document.addEventListener('keydown', (ev) => {
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName);
 
   if (ev.key === 'Escape') {
-    if (isSearchOpen()) closeSearch();
+    if (isImgViewOpen()) closeImageView();
+    else if (isSearchOpen()) closeSearch();
     else if (isSettingsOpen()) closeSettings();
     else if (window.askModal?.isOpen()) window.askModal.close();
     else if (isActivityOpen()) closeActivity();
@@ -2121,8 +2151,8 @@ document.addEventListener('keydown', (ev) => {
     else closeReader();
     return;
   }
-  // 設定・「履歴に質問」を開いているあいだは他のショートカットを止める
-  if (isSettingsOpen() || window.askModal?.isOpen()) return;
+  // 設定・「履歴に質問」・画像プレビューを開いているあいだは他のショートカットを止める
+  if (isSettingsOpen() || window.askModal?.isOpen() || isImgViewOpen()) return;
 
   if ((ev.key === '/' && !typing) || ((ev.ctrlKey || ev.metaKey) && ev.key === 'k')) {
     ev.preventDefault();
