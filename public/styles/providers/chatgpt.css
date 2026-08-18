@@ -21,6 +21,9 @@
 
   --user-bubble-bg: #303030;
   --user-bubble-border: transparent;
+  /* 本家 --default-theme-user-msg-text 相当。継承と同じ地の文字色だが、
+     下のコードの地の color-mix で混ぜるため実色を持たせる */
+  --user-bubble-color: var(--text);
   --user-bubble-max-width: 70%;
 
   --chat-link-color: #10a37f;
@@ -154,9 +157,29 @@ html[data-theme="light"][data-accent-chatgpt] .conversation[data-source="chatgpt
 }
 
 /*
- * 黒は吹き出しだけ明暗が反転するので、地と逆の文字色を継いだインラインコードが
- * 読めなくなる。コードブロック（pre）は自前で --tok-fg を持つので影響しない。
+ * ユーザー発言内のコードの地。本家はインラインもブロックも吹き出しの文字色を
+ * 10% だけ透明に重ねる（.user-message-inline-code と .bg-(--theme-user-msg-text)/10、
+ * 実体はどちらも color-mix(in oklab, var(--theme-user-msg-text) 10%, transparent)）。
+ * --user-bubble-color が本家の --theme-user-msg-text 相当なので、それを混ぜると
+ * アクセントカラーにも既定のグレーにも追従する。
  */
-html[data-accent-chatgpt="black"] .conversation[data-source="chatgpt"] .turn.user .md code {
-  color: var(--tok-fg);
+.conversation[data-source="chatgpt"] .turn.user {
+  --code-bg: color-mix(in oklab, var(--user-bubble-color) 10%, transparent);
+}
+
+/* 地が半透明になり、pre と同じ --code-bg を持つコピーボタンは二重に重なって
+   四角く浮くので、休止時は消してアイコンだけにする */
+.conversation[data-source="chatgpt"] .turn.user .md .code-copy:not(:hover) {
+  background: transparent;
+  border-color: transparent;
+}
+
+/*
+ * 黒だけ吹き出しの明暗が地のテーマと逆転するので、上の重ね塗りでコードの地も
+ * 逆転し、テーマ準拠の配色（pre の --tok-fg と --tok-* トークン、言語名ヘッダー）
+ * が読めなくなる。本家はユーザー発言内のコードをハイライトせず
+ * --theme-user-msg-text 一色で描くので、黒はそれに合わせて吹き出しの文字色に揃える。
+ */
+html[data-accent-chatgpt="black"] .conversation[data-source="chatgpt"] .turn.user .md :is(code, code span, .codeblock-head) {
+  color: var(--user-bubble-color);
 }
