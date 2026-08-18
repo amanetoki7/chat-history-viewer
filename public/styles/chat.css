@@ -173,11 +173,14 @@ html[data-theme="light"] {
   gap: 6px;
   width: 40%;
   margin-bottom: 6px;
+  align-items: center; /* 高さの違うセルが並んでも縦中央で揃える */
 }
 .turn-attachments.cols-1 { grid-template-columns: 1fr; }
 .turn-attachments.cols-2 { grid-template-columns: repeat(2, 1fr); }
 .turn-attachments.cols-3 { grid-template-columns: repeat(3, 1fr); }
-.turn-attachments p { margin: 0; }
+/* 後続の .md p (margin .7em) より詳細度を上げて余白を消す
+ * （.md > *:first-child だけ margin-top 0 になり、2枚目以降が下へずれるのを防ぐ） */
+.turn-attachments.md p { margin: 0; }
 /* 後続の .md img (radius 8px) に負けないよう詳細度を上げる */
 .turn .turn-attachments img {
   display: block;
