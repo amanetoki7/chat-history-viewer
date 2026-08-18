@@ -745,7 +745,7 @@ function itemHtml(item) {
       <div class="ri-head">
         ${sourceLogo(item.source, meta)}
         <span class="ri-title">${highlightText(item.title, state.terms)}</span>        ${item.favorite ? `<span class="ri-star" title="お気に入り">${icon('star-filled', 13)}</span>` : ''}
-        ${updatedDots.has(item.relPath) ? `<span class="ri-dot" title="更新があります"></span>` : ''}
+        ${showUpdateDots && updatedDots.has(item.relPath) ? `<span class="ri-dot" title="更新があります"></span>` : ''}
       </div>
       <div class="ri-meta">
         <span>${fmtDate(itemTime(item))}</span>
@@ -955,6 +955,22 @@ function setShowSnippets(on) {
   showSnippets = on;
   if (on) localStorage.removeItem(SHOW_SNIPPETS_KEY);
   else localStorage.setItem(SHOW_SNIPPETS_KEY, '0');
+}
+
+/**
+ * 同期（自動反映）で追加・更新された会話に付く青いドット（未読マーク）を出すか。
+ * 設定画面の「一般」で切り替える。既定は表示。
+ */
+const SHOW_UPDATE_DOTS_KEY = 'chv-show-update-dots';
+let showUpdateDots = localStorage.getItem(SHOW_UPDATE_DOTS_KEY) !== '0';
+
+function setShowUpdateDots(on) {
+  showUpdateDots = on;
+  if (on) localStorage.removeItem(SHOW_UPDATE_DOTS_KEY);
+  else {
+    localStorage.setItem(SHOW_UPDATE_DOTS_KEY, '0');
+    updatedDots.clear(); // 付いているドットは repaintItems で消える
+  }
 }
 
 /* -------------------------------------------------- 設定（プロバイダー別 UI） */
@@ -1192,6 +1208,12 @@ function renderGeneralPane() {
       ${switchHtml('snippets-switch', 'ハイライト行を表示', showSnippets)}
     </div>
     <p class="settings-note">オフにすると、一致した発言の抜粋（ハイライト行）を一覧に出しません。</p>
+    <div class="settings-section-label">同期</div>
+    <div class="setting-row">
+      <label>更新ドット</label>
+      ${switchHtml('update-dots-switch', '更新ドットを表示', showUpdateDots)}
+    </div>
+    <p class="settings-note">オフにすると、同期で追加・更新された会話に付く青いドット（未読マーク）を出しません。</p>
     <div class="settings-section-label">チャットの日時</div>
     <div class="setting-row">
       <label>日時の基準</label>
@@ -1207,6 +1229,12 @@ function renderGeneralPane() {
   wireSwitch('snippets-switch', (on) => {
     setShowSnippets(on);
     repaintItems(); // 抜粋の有無だけの変更なので読み込み直さない
+    renderGeneralPane();
+  });
+
+  wireSwitch('update-dots-switch', (on) => {
+    setShowUpdateDots(on);
+    repaintItems(); // オフにしたとき、付いているドットをその場で消す
     renderGeneralPane();
   });
 
@@ -2270,9 +2298,11 @@ function onIndexChanged(detail) {
     showToast('この会話のファイルは削除されました', { iconName: 'trash', warn: true, ms: 0 });
   }
 
-  // 追加・更新された会話に青いドットを付ける（開くと消える）
-  for (const c of changes) {
-    if (c.kind !== 'removed') updatedDots.add(c.relPath);
+  // 追加・更新された会話に青いドットを付ける（開くと消える）。設定でオフなら付けない
+  if (showUpdateDots) {
+    for (const c of changes) {
+      if (c.kind !== 'removed') updatedDots.add(c.relPath);
+    }
   }
 
   refreshStats(); // ソース内訳・サーバー概要の件数
