@@ -219,6 +219,16 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* iOS スタンドアロンではソフトキーボードや回転でレイアウトビューポートごと
+     スクロールされ、画面全体が縦にずれたまま戻らないことがある。
+     body をビューポートに固定して window レベルのスクロールを起こさせない */
+  position: fixed;
+  inset: 0;
+  overscroll-behavior: none;
+  /* さらにレイアウトビューポートの高さ自体がセーフエリアを引いた古い値で
+     固まることがあるため、app.js が visualViewport の実測値を入れて上書きする
+     （top+height 指定で inset の bottom は無効になり、実測の高さが勝つ） */
+  height: var(--app-height, 100%);
   /* iOS スタンドアロンでホームインジケーターと重ならないようにする */
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -825,7 +835,12 @@ kbd {
 .hm-note { margin-top: 4px; }
 
 @media (max-width: 640px) {
-  .settings-dialog { margin-top: 5vh; height: 86vh; }
+  /* iOS スタンドアロンではステータスバー下まで描画されるため、
+     セーフエリアを避けた位置から始め、高さも残り分に収める */
+  .settings-dialog {
+    margin-top: max(5vh, calc(env(safe-area-inset-top, 0px) + 8px));
+    height: min(86vh, calc(100dvh - max(5vh, calc(env(safe-area-inset-top, 0px) + 8px)) - env(safe-area-inset-bottom, 0px) - 8px));
+  }
   .settings-body { flex-direction: column; }
   .settings-tabs {
     flex: 0 0 auto; flex-direction: row;
@@ -1032,7 +1047,7 @@ button.activity-chip { border: none; font-family: inherit; cursor: pointer; }
 .imgview-img {
   position: absolute; inset: 0; margin: auto;
   max-width: calc(100vw - 48px);
-  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
   border-radius: 10px;
   box-shadow: var(--shadow);
   animation: search-pop .12s ease-out;
@@ -1040,7 +1055,13 @@ button.activity-chip { border: none; font-family: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .imgview-img { animation: none; }
 }
-.imgview-close { position: absolute; top: 14px; right: 14px; }
+/* iOS スタンドアロン（viewport-fit=cover）ではステータスバー下まで描画されるため、
+   閉じるボタンはセーフエリア分だけ下げてタップできる位置に置く */
+.imgview-close {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  right: calc(14px + env(safe-area-inset-right, 0px));
+}
 
 /* -------------------------------------------------------------- narrow */
 

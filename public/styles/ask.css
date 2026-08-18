@@ -24,7 +24,12 @@
   .ask-dialog { animation: none; }
 }
 @media (max-width: 640px) {
-  .ask-dialog { margin-top: 4vh; height: 90vh; }
+  /* iOS スタンドアロンではステータスバー下まで描画されるため、
+     セーフエリアを避けた位置から始め、高さも残り分に収める */
+  .ask-dialog {
+    margin-top: max(4vh, calc(env(safe-area-inset-top, 0px) + 8px));
+    height: min(90vh, calc(100dvh - max(4vh, calc(env(safe-area-inset-top, 0px) + 8px)) - env(safe-area-inset-bottom, 0px) - 8px));
+  }
 }
 
 .ask-head {

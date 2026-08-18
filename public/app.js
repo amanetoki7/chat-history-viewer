@@ -509,6 +509,30 @@ resultsResizer.addEventListener('keydown', (event) => {
 renderResultsWidth();
 window.addEventListener('resize', renderResultsWidth);
 
+/* iOS スタンドアロン PWA のビューポート補正。
+   1) レイアウトビューポートの高さがセーフエリアを引いた古い値のまま固まり、
+      画面下部が使えない帯として残ることがある → visualViewport の実測値を
+      --app-height に入れて body の高さを実際の可視領域に合わせる。
+   2) ソフトキーボードの開閉や回転の後にレイアウトビューポートがスクロール
+      したまま戻らず、画面全体が縦にずれることがある → キーボードが閉じた
+      状態でずれが残っていたら原点へ戻す。 */
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const syncViewport = () => {
+    // ピンチズーム中は可視高さが縮んで見えるだけなので高さには反映しない
+    if (vv.scale <= 1.01) {
+      document.documentElement.style.setProperty('--app-height', `${Math.round(vv.height)}px`);
+    }
+    const keyboardOpen = vv.height < window.innerHeight - 1;
+    if (!keyboardOpen && (window.scrollY !== 0 || vv.offsetTop !== 0)) window.scrollTo(0, 0);
+  };
+  vv.addEventListener('resize', syncViewport);
+  vv.addEventListener('scroll', syncViewport);
+  window.addEventListener('pageshow', syncViewport);
+  window.addEventListener('orientationchange', syncViewport);
+  syncViewport();
+}
+
 if (localStorage.getItem('chv-results') === 'collapsed') document.body.classList.add('results-collapsed');
 $('#btn-menu').addEventListener('click', () => {
   if (narrowMq.matches) {
