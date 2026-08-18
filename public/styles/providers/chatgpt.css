@@ -167,12 +167,6 @@ html[data-theme="light"][data-accent-chatgpt] .conversation[data-source="chatgpt
   --code-bg: color-mix(in oklab, var(--user-bubble-color) 10%, transparent);
 }
 
-/* 地が半透明になり、pre と同じ --code-bg を持つコピーボタンは二重に重なって
-   四角く浮くので、休止時は消してアイコンだけにする */
-.conversation[data-source="chatgpt"] .turn.user .md .code-copy:not(:hover) {
-  background: transparent;
-  border-color: transparent;
-}
 
 /*
  * 黒だけ吹き出しの明暗が地のテーマと逆転するので、上の重ね塗りでコードの地も

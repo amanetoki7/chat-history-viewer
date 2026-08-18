@@ -293,6 +293,8 @@ html[data-theme="light"] {
 }
 .md .code-copy:hover { background: var(--bg-hover); color: var(--text); }
 .md .code-copy.done { color: var(--chat-link-color); }
+/* コピーボタンは AI の回答のみ。ユーザー発言内のコードには出さない */
+.turn.user .md .code-copy { display: none; }
 
 /* 言語名ヘッダー（フェンスに言語指定がある場合）。pre の上に連結して1枚の枠に見せる */
 .md .codeblock-head {
