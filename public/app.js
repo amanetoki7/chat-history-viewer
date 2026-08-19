@@ -145,6 +145,17 @@ const fenceFor = (s) =>
   '`'.repeat(Math.max(3, ((s || '').match(/`+/g) || []).reduce((max, run) => Math.max(max, run.length), 0) + 1));
 
 /**
+ * 検索だけの思考（本文のある思考・コード実行・前置きが無い）か。
+ * 本家はこの場合「◯s考えました」もアクティビティも出さないため、既定では隠し、
+ * 設定（ChatGPT > 検索の詳細を表示する）で表示できるようにする（styles/chat.css 参照）。
+ */
+const isSearchOnlyReasoning = (r) =>
+  !r.preamble &&
+  r.activity.some((a) => a.kind === 'search') &&
+  r.activity.every((a) => a.kind === 'search' || (a.kind === 'thought' && !a.content)) &&
+  (r.toolRows || []).every((w) => w.kind === 'web');
+
+/**
  * ChatGPT（Native）の思考アクティビティを「◯m ◯s考えました」の折りたたみにする。
  * 展開には前置きテキストとツール要約の行（ウェブ検索は 1 つ目のサイトの favicon、
  * ターミナル実行はターミナルアイコン付き。クリックでアクティビティパネルが開く）を出す。
@@ -152,6 +163,7 @@ const fenceFor = (s) =>
  */
 function reasoningBlock(turn) {
   const r = turn.reasoning;
+  const searchOnly = isSearchOnlyReasoning(r) ? ' search-only' : '';
   const label = r.recap || (r.durationSec ? `${fmtThinkDuration(r.durationSec)}考えました` : '思考プロセス');
 
   let body = r.preamble ? md.render(r.preamble) : '';
@@ -172,10 +184,10 @@ function reasoningBlock(turn) {
       .join('');
   }
   // 中身が何も無い思考は、本家と同じくラベルだけをテキストとして出す
-  if (!body) return r.recap ? `<div class="reasoning-plain">${escapeHtml(r.recap)}</div>` : '';
+  if (!body) return r.recap ? `<div class="reasoning-plain${searchOnly}">${escapeHtml(r.recap)}</div>` : '';
 
   return (
-    `<details class="block reasoning"><summary><span>${escapeHtml(label)}</span></summary>` +
+    `<details class="block reasoning${searchOnly}"><summary><span>${escapeHtml(label)}</span></summary>` +
     `<div class="block-body md">${body}</div></details>`
   );
 }
@@ -1105,6 +1117,9 @@ function applyUiSettings() {
     if (value && value !== 'default') document.documentElement.setAttribute(accentAttr(source), value);
     else document.documentElement.removeAttribute(accentAttr(source));
   }
+
+  // 検索だけの思考の表示（ChatGPT のみ）。styles/chat.css が html.show-search-detail で切り替える
+  document.documentElement.classList.toggle('show-search-detail', !!uiSettings.chatgpt?.searchDetail);
 }
 
 function saveUiSettings() {
@@ -1439,6 +1454,17 @@ function renderSettingsPane() {
     </div>`
     : '';
 
+  // 検索だけの思考の表示（ChatGPT のみ）。本家は展開を出さないため既定はオフ
+  const searchDetailRow =
+    source === 'chatgpt'
+      ? `<div class="settings-section-label">思考アクティビティ</div>
+    <div class="setting-row">
+      <label>検索の詳細を表示する</label>
+      ${switchHtml('search-detail-switch', '検索の詳細を表示する', !!conf.searchDetail)}
+    </div>
+    <p class="settings-note">オンにすると、検索だけで完了した思考にも「◯s考えました」の折りたたみとアクティビティ（検索語）を表示します。オフでは本家と同じく省略します。</p>`
+      : '';
+
   // このプロバイダーのアクティビティ（統計が未取得のあいだは出さない）
   const meta = settingsProviders().find((p) => p.id === source);
   const heatmapRow = serverStats
@@ -1449,6 +1475,7 @@ function renderSettingsPane() {
   el.settingsPane.innerHTML = `
     ${heatmapRow}
     ${accentRow}
+    ${searchDetailRow}
     <div class="settings-section-label">チャット表示</div>
     ${sliders}
     <div class="settings-section-label">一覧の行</div>
@@ -1465,6 +1492,16 @@ function renderSettingsPane() {
       saveUiSettings(); // 属性の付け外しも applyUiSettings が行う
       renderSettingsTabs();
       renderSettingsPane(); // 選択表示とチェックを描き直す（メニューも閉じる）
+    });
+  }
+
+  if (searchDetailRow) {
+    wireSwitch('search-detail-switch', (on) => {
+      if (on) (uiSettings[source] ??= {}).searchDetail = true;
+      else if (uiSettings[source]) delete uiSettings[source].searchDetail;
+      saveUiSettings(); // html クラスの付け外しも applyUiSettings が行う
+      renderSettingsTabs();
+      renderSettingsPane();
     });
   }
 

@@ -388,6 +388,11 @@ details.reasoning > .block-body {
   color: var(--block-summary-color);
 }
 
+/* 検索だけの思考は、本家と同じく既定では「◯s考えました」もアクティビティも出さない。
+   設定（ChatGPT > 検索の詳細を表示する）で html.show-search-detail が付いたときだけ表示 */
+html:not(.show-search-detail) details.reasoning.search-only,
+html:not(.show-search-detail) .reasoning-plain.search-only { display: none; }
+
 /* 展開内の「N件のウェブサイトを検索しました」。クリックでアクティビティパネルが開く */
 .reasoning-web {
   display: flex; align-items: center; gap: 7px;
