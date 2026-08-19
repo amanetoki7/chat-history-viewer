@@ -629,6 +629,13 @@ mark { background: var(--mark-bg); color: var(--mark-text); border-radius: 2px; 
 
 .reader { overflow-y: auto; min-width: 0; scroll-behavior: smooth; }
 
+/* リーダーと文章作成の拡大表示（#writing-view）は同じグリッドセルに重ねる。
+   場所を明示しないと、拡大表示が自動配置で隣の列へ押し出されてしまう */
+.reader, .writing-view { grid-column: 2; grid-row: 1; }
+@media (max-width: 900px) {
+  .reader, .writing-view { grid-column: 1; }
+}
+
 .empty {
   height: 100%;
   display: flex; flex-direction: column; align-items: center; justify-content: center;

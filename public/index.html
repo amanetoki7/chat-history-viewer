@@ -78,6 +78,17 @@
     <div class="toast" id="toast" hidden></div>
   </main>
 
+  <!-- 文章作成ドキュメント（:::writing）の拡大表示。チャットプレビュー全体
+       （リーダーのグリッドセル）に展開し、開くと本文中の .writing-card が
+       #writing-view-slot へ移動、閉じると元の位置へ戻る（app.js が動かす） -->
+  <section class="writing-view" id="writing-view" hidden role="region" aria-label="ドキュメント">
+    <div class="writing-view-head">
+      <button class="icon-btn" id="writing-view-close" title="閉じる（Esc）" aria-label="閉じる" data-icon="x" data-size="17"></button>
+      <h2 class="writing-view-title" id="writing-view-title"></h2>
+    </div>
+    <div class="writing-view-body" id="writing-view-slot"></div>
+  </section>
+
   <!-- 思考アクティビティ。ChatGPT（Native）の「考えました」内の
        「N件のウェブサイトを検索しました」から開く。本文（.turns）の右隣の列として
        展開し、開いている間はその分本文が狭まる（中身は app.js が描く） -->
@@ -170,13 +181,6 @@
       </div>
     </div>
   </div>
-</div>
-
-<!-- 文章作成ドキュメント（:::writing）の全画面表示。開くと本文中の
-     .writing-card がこの中へ移動し、閉じると元の位置へ戻る（app.js が動かす） -->
-<div class="writing-modal" id="writing-modal" hidden>
-  <div class="writing-backdrop" id="writing-backdrop"></div>
-  <div class="writing-dialog" role="dialog" aria-modal="true" aria-label="ドキュメント"></div>
 </div>
 
 <!-- 添付画像のフルサイズプレビュー（サムネイルのタップで開く。中身は app.js が入れる） -->

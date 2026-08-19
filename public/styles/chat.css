@@ -499,32 +499,45 @@ details.reasoning > .block-body {
   font: inherit; line-height: inherit; color: inherit;
 }
 
-/* 「全画面を閉じる」はモーダル内でだけ出し、「全画面で表示」と入れ替える */
-.writing-card .w-act[data-wact="collapse"] { display: none; }
-.writing-dialog .writing-card .w-act[data-wact="collapse"] { display: grid; }
-.writing-dialog .writing-card .w-act[data-wact="expand"] { display: none; }
+/* ---------- 拡大表示（.writing-card が index.html の #writing-view へ移動）。
+             リーダーと同じグリッドセルに重ね、チャットプレビュー全体へ展開する */
 
-/* ---------- 全画面表示（.writing-card が index.html の #writing-modal へ移動） */
-
-.writing-modal {
-  position: fixed; inset: 0; z-index: 65;
+.writing-view {
+  /* グリッド上の位置（リーダーと同じセル）は styles.css のレイアウト側で定義 */
+  z-index: 15; /* リーダーの sticky な会話ヘッダー（z-index: 10）より上、scrim（20）より下 */
+  min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+  background: var(--bg);
   /* .conversation の外なのでチャット本文相当の文字設定をここで与える */
   font-family: var(--sans); font-size: 14.5px; line-height: 1.8;
 }
-.writing-backdrop { position: absolute; inset: 0; background: #0008; }
-.writing-dialog {
-  position: absolute; inset: 0; margin: auto;
-  width: min(920px, 100% - 28px);
-  height: min(100% - 28px, 1400px);
+
+/* ヘッダー：左上にバツ、続けてディレクティブの title 属性 */
+.writing-view-head {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-soft);
 }
-.writing-dialog .writing-card {
-  display: flex; flex-direction: column;
-  height: 100%; margin: 0;
-  box-shadow: var(--shadow);
+.writing-view-head .icon-btn { background: transparent; border: none; }
+.writing-view-title {
+  margin: 0;
+  font-size: 14px; font-weight: 650;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.writing-dialog .writing-body { flex: 1; overflow-y: auto; padding: 8px 48px 48px; }
-/* インライン表示で付いた内容フィット用の高さ（style 属性）は flex に譲る */
-.writing-dialog .writing-editor { flex: 1; overflow-y: auto; height: auto !important; min-height: 0; }
+
+.writing-view-body { flex: 1 1 auto; overflow-y: auto; padding: 4px 28px 120px; }
+
+/* 展開中のカードは枠を捨て、読みやすい幅で中央に敷く */
+.writing-view .writing-card {
+  max-width: 820px; margin: 0 auto;
+  border: none; border-radius: 0; background: transparent; box-shadow: none;
+}
+.writing-view .writing-toolbar { padding: 10px 0 0; }
+.writing-view .writing-body { padding: 8px 0 0; }
+.writing-view .writing-editor { padding: 14px 0 0; }
+/* 展開中は「拡大表示」ボタンを出さない（閉じるのはヘッダーのバツ） */
+.writing-view .writing-card .w-act[data-wact="expand"] { display: none; }
 
 /* -------------------------------------------------------------- narrow */
 
@@ -534,6 +547,6 @@ details.reasoning > .block-body {
 
 @media (max-width: 700px) {
   .writing-body, .writing-editor { padding: 6px 18px 22px; }
-  .writing-dialog { width: calc(100% - 12px); height: calc(100% - 12px); }
-  .writing-dialog .writing-body { padding: 8px 20px 28px; }
+  .writing-view-body { padding: 4px 16px 100px; }
+  .writing-view .writing-body, .writing-view .writing-editor { padding: 8px 0 0; }
 }

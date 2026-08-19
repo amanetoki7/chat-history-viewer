@@ -1940,7 +1940,7 @@ function writingViewHtml(docKey) {
     `<div class="writing-toolbar">
       <button type="button" class="writing-btn" data-wact="edit">${icon('pencil', 14)}<span>編集</span></button>
       ${canUndo ? '<span class="writing-local" title="この版はこのブラウザにだけ保存されています（元のファイルは変更されません）">ローカル編集</span>' : ''}
-      <span class="writing-tools">${history}${writingIconBtn('copy', 'copy', 'コピー')}${writingIconBtn('download', 'download', 'Markdown をダウンロード')}${writingIconBtn('expand', 'arrows-diagonal', '全画面で表示')}${writingIconBtn('collapse', 'arrows-diagonal-minimize-2', '全画面を閉じる')}</span>
+      <span class="writing-tools">${history}${writingIconBtn('copy', 'copy', 'コピー')}${writingIconBtn('download', 'download', 'Markdown をダウンロード')}${writingIconBtn('expand', 'arrows-diagonal', '拡大表示')}</span>
     </div>
     <div class="writing-body md">${md.render(writingCurrentText(docKey))}</div>`
   );
@@ -1969,9 +1969,8 @@ function renderWritingCard(card, editing = false) {
   }
 }
 
-/** テキストエリアを内容の高さに合わせる（全画面時は flex が高さを決めるので触らない） */
+/** テキストエリアを内容の高さに合わせる（スクロールは外側のコンテナに任せる） */
 function resizeWritingEditor(ta) {
-  if (ta.closest('.writing-dialog')) return;
   ta.style.height = 'auto';
   ta.style.height = `${ta.scrollHeight + 2}px`;
 }
@@ -1980,22 +1979,29 @@ document.addEventListener('input', (ev) => {
   if (ev.target.matches?.('.writing-editor')) resizeWritingEditor(ev.target);
 });
 
-/* ---------- 全画面表示。カードの DOM ごとモーダルへ移し、閉じると元の位置へ戻す
+/* ---------- 拡大表示。チャットプレビュー（リーダーのグリッドセル）全体に展開する。
+             カードの DOM ごと #writing-view へ移し、閉じると元の位置へ戻す
              （移動なので、編集途中のテキストや版の状態はそのまま保たれる） */
 
-const writingModal = $('#writing-modal');
+const writingView = $('#writing-view');
 
-/** 全画面表示中のカードと戻り先。{ card, marker } */
+/** 拡大表示中のカードと戻り先。{ card, marker } */
 let writingHome = null;
 
-const isWritingViewOpen = () => !writingModal.hidden;
+const isWritingViewOpen = () => !writingView.hidden;
 
 function openWritingView(card) {
   const marker = document.createComment('writing-card');
   card.parentNode.insertBefore(marker, card);
-  writingModal.querySelector('.writing-dialog').appendChild(card);
+  // ヘッダーにはディレクティブの title 属性（内部データのタイトル）を出す
+  $('#writing-view-title').textContent = writingDocs.get(card.dataset.dockey)?.title || 'ドキュメント';
+  $('#writing-view-slot').appendChild(card);
   writingHome = { card, marker };
-  writingModal.hidden = false;
+  writingView.hidden = false;
+  writingView.querySelector('.writing-view-body').scrollTop = 0;
+  // 編集中に展開したときは、新しい横幅でテキストエリアの高さを測り直す
+  const ta = card.querySelector('.writing-editor');
+  if (ta) resizeWritingEditor(ta);
 }
 
 function closeWritingView() {
@@ -2003,7 +2009,7 @@ function closeWritingView() {
   const { card, marker } = writingHome;
   if (marker.parentNode) {
     marker.parentNode.insertBefore(card, marker);
-    // 全画面中の編集で高さが変わっていることがあるため測り直す
+    // 拡大中の編集で高さが変わっていることがあるため測り直す
     const ta = card.querySelector('.writing-editor');
     if (ta) resizeWritingEditor(ta);
   } else {
@@ -2012,10 +2018,10 @@ function closeWritingView() {
   }
   marker.remove();
   writingHome = null;
-  writingModal.hidden = true;
+  writingView.hidden = true;
 }
 
-$('#writing-backdrop').addEventListener('click', closeWritingView);
+$('#writing-view-close').addEventListener('click', closeWritingView);
 
 /* ツールバーの操作。カードは本文とモーダルのどちらにも居られるため document で拾う */
 document.addEventListener('click', async (ev) => {
@@ -2063,8 +2069,6 @@ document.addEventListener('click', async (ev) => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   } else if (act === 'expand') {
     openWritingView(card);
-  } else if (act === 'collapse') {
-    closeWritingView();
   }
 });
 
