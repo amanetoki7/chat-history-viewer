@@ -2358,7 +2358,11 @@ function activityHtml(r) {
   for (const item of r.activity) {
     if (item.kind === 'search') {
       const chip = (d, cls = '') => `<span class="activity-chip${cls}">${favIcoHtml(d)}<span>${escapeHtml(d)}</span></span>`;
-      let chips = item.domains.slice(0, ACTIVITY_CHIP_MAX).map((d) => chip(d)).join('');
+      // 検索語（search("…") 由来）は虫眼鏡アイコン（右端）付きのチップで先頭に出す
+      let chips = item.query
+        ? `<span class="activity-chip activity-query"><span>${escapeHtml(item.query)}</span>${icon('search', 13)}</span>`
+        : '';
+      chips += item.domains.slice(0, ACTIVITY_CHIP_MAX).map((d) => chip(d)).join('');
       const rest = item.domains.slice(ACTIVITY_CHIP_MAX);
       if (rest.length) {
         // 畳んだ残りは通常は隠し、「あと N 個」（残り先頭 3 つのファビコンを重ねて表示）で展開する

@@ -973,6 +973,11 @@ kbd {
 }
 .activity-chip:hover { background: var(--tip-bg-hover); color: var(--bg-elev); }
 
+/* 検索語チップ（虫眼鏡は右端）。サイトチップと違い押せる見た目にしない */
+.activity-query { padding: 2px 7px 2px 10px; cursor: default; }
+.activity-query:hover { background: var(--tip-bg); color: var(--text-dim); }
+.activity-query .ti { flex: none; color: var(--text-faint); }
+
 /* 「あと N 個」で畳んだサイトチップ。押すと全チップと「表示を減らす」に切り替わる */
 button.activity-chip { border: none; font-family: inherit; cursor: pointer; }
 .activity-chips .chip-rest,

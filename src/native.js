@@ -28,6 +28,21 @@ function urlHost(url) {
   }
 }
 
+/**
+ * web ツールへの検索指示 `search("…")` から検索語を取り出す。
+ * 引数は JSON 文字列リテラル（非 ASCII は \uXXXX エスケープ）なので JSON.parse で復元する。
+ * 形が合わなければ null（呼び出し側はコードカード表示へフォールバック）。
+ */
+function searchCallQuery(text) {
+  const m = /^search\(\s*("(?:[^"\\]|\\.)*")\s*\)\s*;?$/.exec((text || '').trim());
+  if (!m) return null;
+  try {
+    return JSON.parse(m[1]);
+  } catch {
+    return null;
+  }
+}
+
 /** 引用ホバーカードの 1 ページぶんに整形する。 */
 function toCitePage(it) {
   return {
@@ -307,6 +322,21 @@ function buildTurns(mapping, currentNode) {
       if (typeof content.content === 'string' && content.content) pending.recap = content.content;
       if (Number.isFinite(meta.finished_duration_sec)) pending.durationSec = meta.finished_duration_sec;
       continue;
+    }
+
+    // web ツールへの検索指示（search("\uXXXX…")）。コードカードではなく
+    // 検索行（地球儀の見出し + 虫眼鏡の検索語チップ）として出す
+    if (content.content_type === 'code' && (msg.recipient === 'web' || msg.recipient === 'browser')) {
+      const query = searchCallQuery(content.text);
+      if (query) {
+        pending.activity.push({
+          kind: 'search',
+          title: typeof meta.reasoning_title === 'string' ? meta.reasoning_title : '',
+          domains: [],
+          query,
+        });
+        continue;
+      }
     }
 
     // ターミナル実行（container.exec / python 等へのコマンド）。パネルにコードカードとして出す。
