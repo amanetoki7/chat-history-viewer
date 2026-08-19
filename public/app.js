@@ -1946,7 +1946,17 @@ function writingViewHtml(docKey) {
   );
 }
 
-/** 編集モードの中身（保存 / キャンセル＋テキストエリア） */
+/*
+ * WYSIWYG 編集。太字・見出しなどの描画を保ったまま contenteditable で直接編集し、
+ * 保存時に DOM を Markdown へ逆変換して版に積む。
+ *
+ * 編集用の描画にはリンクチップ・コードコピー等の装飾を持たないプレーンな
+ * markdown-it を使い、DOM が素直な HTML（h1〜h6 / p / strong / em …）に
+ * なるようにしておく。逆変換はその語彙だけを相手にすればよい。
+ */
+const mdPlain = window.markdownit({ html: false, linkify: true, breaks: true });
+
+/** 編集モードの中身（保存 / キャンセル＋描画されたままの編集領域） */
 function writingEditorHtml(docKey) {
   return (
     `<div class="writing-toolbar">
@@ -1954,7 +1964,7 @@ function writingEditorHtml(docKey) {
       <button type="button" class="writing-btn" data-wact="cancel"><span>キャンセル</span></button>
       <span class="writing-note">保存先はこのブラウザだけで、元のファイルは変更されません</span>
     </div>
-    <textarea class="writing-editor" spellcheck="false">${escapeHtml(writingCurrentText(docKey))}</textarea>`
+    <div class="writing-body md writing-editable" contenteditable="true" spellcheck="false">${mdPlain.render(writingCurrentText(docKey))}</div>`
   );
 }
 
@@ -1962,22 +1972,151 @@ function writingEditorHtml(docKey) {
 function renderWritingCard(card, editing = false) {
   card.classList.toggle('is-editing', editing);
   card.innerHTML = editing ? writingEditorHtml(card.dataset.dockey) : writingViewHtml(card.dataset.dockey);
-  if (editing) {
-    const ta = card.querySelector('.writing-editor');
-    resizeWritingEditor(ta);
-    ta.focus();
-  }
+  if (editing) card.querySelector('.writing-editable').focus();
 }
 
-/** テキストエリアを内容の高さに合わせる（スクロールは外側のコンテナに任せる） */
-function resizeWritingEditor(ta) {
-  ta.style.height = 'auto';
-  ta.style.height = `${ta.scrollHeight + 2}px`;
-}
-
-document.addEventListener('input', (ev) => {
-  if (ev.target.matches?.('.writing-editor')) resizeWritingEditor(ev.target);
+// 編集領域への貼り付けはプレーンテキストとして挿入する
+// （他サイトの装飾 HTML が紛れ込むと Markdown へ戻せなくなるため）
+document.addEventListener('paste', (ev) => {
+  if (!ev.target.closest?.('.writing-editable')) return;
+  ev.preventDefault();
+  document.execCommand('insertText', false, ev.clipboardData.getData('text/plain'));
 });
+
+/* ---------- 編集領域の DOM → Markdown 逆変換 */
+
+/** インラインコード。中身のバッククォート列より長い区切りで囲む */
+function inlineCodeMd(text) {
+  const runs = text.match(/`+/g);
+  const ticks = '`'.repeat(runs ? Math.max(...runs.map((r) => r.length)) + 1 : 1);
+  const pad = text.startsWith('`') || text.endsWith('`') ? ' ' : '';
+  return ticks + pad + text + pad + ticks;
+}
+
+/** インライン要素の並びを Markdown にする。BR は改行（breaks: true が復元する） */
+function writingInlineMd(nodes) {
+  let out = '';
+  for (const node of nodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      // 生の改行は markdown-it がタグの後（<br> 直後など）に挟む整形用のもの。
+      // 表示上は存在しない（改行は BR が担う）ので落とす。nbsp は普通の空白へ
+      out += node.nodeValue.replace(/\n/g, '').replace(/ /g, ' ');
+      continue;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    const tag = node.tagName;
+    const inner = () => writingInlineMd(node.childNodes);
+    if (tag === 'BR') out += '\n';
+    else if (tag === 'STRONG' || tag === 'B') out += `**${inner()}**`;
+    else if (tag === 'EM' || tag === 'I') out += `*${inner()}*`;
+    else if (tag === 'DEL' || tag === 'S' || tag === 'STRIKE') out += `~~${inner()}~~`;
+    else if (tag === 'CODE') out += inlineCodeMd(node.textContent);
+    else if (tag === 'A') {
+      const href = node.getAttribute('href') || '';
+      const label = inner();
+      out += label === href ? href : `[${label}](${href})`;
+    } else if (tag === 'IMG') {
+      out += `![${node.getAttribute('alt') || ''}](${node.getAttribute('src') || ''})`;
+    } else if (tag === 'SPAN' && /bold|^[7-9]00$/.test(node.style.fontWeight)) {
+      out += `**${inner()}**`; // 一部ブラウザの Ctrl+B は style 付き span を作る
+    } else if (tag === 'SPAN' && node.style.fontStyle === 'italic') {
+      out += `*${inner()}*`;
+    } else {
+      out += inner(); // その他の span 等は透過
+    }
+  }
+  return out;
+}
+
+const WRITING_BLOCK_TAG = /^(P|DIV|H[1-6]|UL|OL|PRE|BLOCKQUOTE|HR|TABLE)$/;
+
+/** ブロック要素 1 つを Markdown にする */
+function writingBlockMd(el) {
+  const tag = el.tagName;
+  const h = /^H([1-6])$/.exec(tag);
+  if (h) return `${'#'.repeat(Number(h[1]))} ${writingInlineMd(el.childNodes).replace(/\n/g, ' ').trim()}`;
+  if (tag === 'HR') return '---';
+  if (tag === 'PRE') {
+    const code = el.querySelector('code');
+    const lang = /language-(\S+)/.exec(code?.className || '')?.[1] || '';
+    const body = (code || el).textContent.replace(/\n$/, '');
+    const fence = fenceFor(body);
+    return `${fence}${lang}\n${body}\n${fence}`;
+  }
+  if (tag === 'UL' || tag === 'OL') return writingListMd(el);
+  if (tag === 'BLOCKQUOTE') {
+    return writingBlocksMd(el)
+      .split('\n')
+      .map((line) => (line ? `> ${line}` : '>'))
+      .join('\n');
+  }
+  if (tag === 'TABLE') return writingTableMd(el);
+  // P / DIV / その他は段落
+  return writingInlineMd(el.childNodes).trim();
+}
+
+function writingListMd(list) {
+  const ordered = list.tagName === 'OL';
+  let n = Number(list.getAttribute('start')) || 1;
+  const lines = [];
+  for (const li of list.children) {
+    if (li.tagName !== 'LI') continue;
+    const marker = ordered ? `${n++}. ` : '- ';
+    const pad = ' '.repeat(marker.length);
+    // 項目の直下を「テキストの流れ」と「入れ子のブロック」に分けて直列化する
+    const inline = [];
+    const parts = [];
+    for (const node of li.childNodes) {
+      if (node.nodeType === Node.ELEMENT_NODE && WRITING_BLOCK_TAG.test(node.tagName)) {
+        const md = writingBlockMd(node);
+        if (md) parts.push(md);
+      } else {
+        inline.push(node);
+      }
+    }
+    const head = writingInlineMd(inline).trim();
+    if (head) parts.unshift(head);
+    const itemLines = parts.join('\n').split('\n');
+    lines.push(marker + (itemLines[0] || ''));
+    for (const line of itemLines.slice(1)) lines.push(pad + line);
+  }
+  return lines.join('\n');
+}
+
+function writingTableMd(table) {
+  const rows = [...table.querySelectorAll('tr')];
+  if (!rows.length) return '';
+  const cells = (tr) =>
+    [...tr.children].map((c) => writingInlineMd(c.childNodes).replace(/\n/g, ' ').replace(/\|/g, '\\|').trim());
+  const head = cells(rows[0]);
+  const out = [`| ${head.join(' | ')} |`, `|${head.map(() => ' --- ').join('|')}|`];
+  for (const tr of rows.slice(1)) out.push(`| ${cells(tr).join(' | ')} |`);
+  return out.join('\n');
+}
+
+/** コンテナ直下を歩き、ブロックの列として Markdown 化する（空段落は落とす） */
+function writingBlocksMd(container) {
+  const blocks = [];
+  let run = ''; // ブロック要素の合間に直接置かれたテキスト・インラインの寄せ集め
+  const flush = () => {
+    const text = run.trim();
+    if (text) blocks.push(text);
+    run = '';
+  };
+  for (const node of container.childNodes) {
+    if (node.nodeType === Node.ELEMENT_NODE && WRITING_BLOCK_TAG.test(node.tagName)) {
+      flush();
+      const md = writingBlockMd(node);
+      if (md) blocks.push(md);
+    } else if (node.nodeType === Node.TEXT_NODE) {
+      run += node.nodeValue.replace(/ /g, ' ');
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      run += writingInlineMd([node]);
+    }
+  }
+  flush();
+  return blocks.join('\n\n');
+}
 
 /* ---------- 拡大表示。チャットプレビュー（リーダーのグリッドセル）全体に展開する。
              カードの DOM ごと #writing-view へ移し、閉じると元の位置へ戻す
@@ -1999,9 +2138,6 @@ function openWritingView(card) {
   writingHome = { card, marker };
   writingView.hidden = false;
   writingView.querySelector('.writing-view-body').scrollTop = 0;
-  // 編集中に展開したときは、新しい横幅でテキストエリアの高さを測り直す
-  const ta = card.querySelector('.writing-editor');
-  if (ta) resizeWritingEditor(ta);
 }
 
 function closeWritingView() {
@@ -2009,9 +2145,6 @@ function closeWritingView() {
   const { card, marker } = writingHome;
   if (marker.parentNode) {
     marker.parentNode.insertBefore(card, marker);
-    // 拡大中の編集で高さが変わっていることがあるため測り直す
-    const ta = card.querySelector('.writing-editor');
-    if (ta) resizeWritingEditor(ta);
   } else {
     // 会話が描き直されて戻り先が消えていたら、カードは捨てる（本文側に新しいカードがある）
     card.remove();
@@ -2036,8 +2169,10 @@ document.addEventListener('click', async (ev) => {
   } else if (act === 'cancel') {
     renderWritingCard(card);
   } else if (act === 'save') {
-    const text = card.querySelector('.writing-editor').value;
-    if (text !== writingCurrentText(docKey)) {
+    const text = writingBlocksMd(card.querySelector('.writing-editable'));
+    // 逆変換は空行の詰め方などで原文と一致しないことがあるため、
+    // 「変更なし」の判定は描画結果（意味）の比較で行う
+    if (mdPlain.render(text) !== mdPlain.render(writingCurrentText(docKey))) {
       const store = readWritingStore(docKey);
       // いま見ている版より先の「やり直し」は捨てて、新しい版を積む
       store.versions = store.versions.slice(0, store.cursor);
@@ -2389,7 +2524,8 @@ function renderSortMenu() {
 renderSortMenu();
 
 document.addEventListener('keydown', (ev) => {
-  const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName);
+  // contenteditable（文章作成ドキュメントの WYSIWYG 編集）も「入力中」として扱う
+  const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName) || ev.target.isContentEditable;
 
   if (ev.key === 'Escape') {
     if (isImgViewOpen()) closeImageView();

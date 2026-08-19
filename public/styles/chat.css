@@ -491,12 +491,13 @@ details.reasoning > .block-body {
 
 .writing-body { padding: 6px 36px 36px; }
 
-.writing-editor {
-  display: block; width: 100%;
-  min-height: 220px;
-  padding: 14px 36px 36px;
-  background: transparent; border: 0; outline: none; resize: none;
-  font: inherit; line-height: inherit; color: inherit;
+/* WYSIWYG 編集。描画されたままの本文（.writing-body を兼ねる）を直接編集する */
+.writing-editable {
+  min-height: 200px;
+  outline: none;
+  caret-color: var(--accent);
+  cursor: text;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- 拡大表示（.writing-card が index.html の #writing-view へ移動）。
@@ -535,7 +536,6 @@ details.reasoning > .block-body {
 }
 .writing-view .writing-toolbar { padding: 10px 0 0; }
 .writing-view .writing-body { padding: 8px 0 0; }
-.writing-view .writing-editor { padding: 14px 0 0; }
 /* 展開中は「拡大表示」ボタンを出さない（閉じるのはヘッダーのバツ） */
 .writing-view .writing-card .w-act[data-wact="expand"] { display: none; }
 
@@ -546,7 +546,7 @@ details.reasoning > .block-body {
 }
 
 @media (max-width: 700px) {
-  .writing-body, .writing-editor { padding: 6px 18px 22px; }
+  .writing-body { padding: 6px 18px 22px; }
   .writing-view-body { padding: 4px 16px 100px; }
-  .writing-view .writing-body, .writing-view .writing-editor { padding: 8px 0 0; }
+  .writing-view .writing-body { padding: 8px 0 0; }
 }
