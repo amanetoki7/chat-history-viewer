@@ -205,17 +205,19 @@ function navCardsHtml(items) {
 
 /**
  * Claude の <antArtifact> / <antThinking> を折りたたみブロックへ、
- * ChatGPT（Native）の <antNavList>（turn.navLists への参照）を記事カードへ
+ * ChatGPT（Native）の <antNavList>（turn.navLists への参照）を記事カードへ、
+ * ChatGPT の `:::writing{…}` ディレクティブを文章作成カードへ
  * 変換しつつ Markdown を描画する。
  */
-function renderRich(text, turn) {
+function renderRich(text, turn, conv) {
   if (!text) return '';
   // link_open レンダラーが引用チップ（#cite-N）の解決に turn.citeLists を使う
   const env = { turn };
   const re =
-    /<antArtifact\b([^>]*)>([\s\S]*?)<\/antArtifact>|<antThinking>([\s\S]*?)<\/antThinking>|<antNavList index="(\d+)"><\/antNavList>/g;
+    /<antArtifact\b([^>]*)>([\s\S]*?)<\/antArtifact>|<antThinking>([\s\S]*?)<\/antThinking>|<antNavList index="(\d+)"><\/antNavList>|^:::writing\{([^}\n]*)\}[ \t]*\n([\s\S]*?)\n:::[ \t]*$/gm;
   let html = '';
   let last = 0;
+  let wseq = 0; // 同一ターン内に複数の writing ブロックがあるときの連番
   let m;
 
   while ((m = re.exec(text)) !== null) {
@@ -223,7 +225,9 @@ function renderRich(text, turn) {
     if (before.trim()) html += md.render(before, env);
     last = m.index + m[0].length;
 
-    if (m[4] !== undefined) {
+    if (m[5] !== undefined) {
+      html += writingCardHtml(m[5], m[6], turn, conv, wseq++);
+    } else if (m[4] !== undefined) {
       html += navCardsHtml(turn?.navLists?.[Number(m[4])]);
     } else if (m[3] !== undefined) {
       html += detailsBlock('thinking', 'bulb', '思考プロセス', md.render(m[3].trim()), false);
@@ -1554,7 +1558,7 @@ function renderTurnHtml(turn, conv) {
   const reasoningHtml = turn.role === 'assistant' && turn.reasoning ? reasoningBlock(turn) : '';
   const bubbleHtml =
     bodyText.trim() || extras || reasoningHtml
-      ? `<div class="bubble md">${reasoningHtml}${renderRich(bodyText, turn)}${extras}</div>`
+      ? `<div class="bubble md">${reasoningHtml}${renderRich(bodyText, turn, conv)}${extras}</div>`
       : '';
 
   return `<div class="turn ${turn.role}" data-turn="${turn.index}">
@@ -1621,6 +1625,7 @@ async function openConversation(relPath, focusTurn, { keepScroll = false } = {})
     // 前の会話が残ったままにせず、すぐにまっさらな状態にする
     activeConv = null;
     closeCitePop();
+    closeWritingView();
     el.conversation.innerHTML = '';
     el.conversation.hidden = false;
     el.readerEmpty.hidden = true;
@@ -1861,6 +1866,208 @@ function closeImageView() {
 $('#imgview-close').addEventListener('click', closeImageView);
 $('#imgview-backdrop').addEventListener('click', closeImageView);
 
+/* ------------------------------------------- 文章作成ドキュメント（:::writing） */
+
+/*
+ * ChatGPT の文章作成（canvas）は Markdown へ `:::writing{…} … :::` として
+ * エクスポートされる。これを本家風のドキュメントカードとして描画し、
+ * その場で編集できるようにする。
+ *
+ *   - 編集はこのブラウザ（localStorage）にだけ版として積み上がり、
+ *     元の .md ファイルは一切変更しない
+ *   - 「戻す / やり直す」で版を行き来でき、いちばん最初まで戻すと
+ *     実際の履歴ファイルに残っている内容（原文）に復元される
+ */
+
+/** 表示中ドキュメントの原文。docKey → { title, original }（renderRich が登録する） */
+const writingDocs = new Map();
+
+const WRITING_STORE_PREFIX = 'chv-writing:';
+
+/** ローカル編集の版を読む。{ versions: string[], cursor: number }。cursor 0 = 原文 */
+function readWritingStore(docKey) {
+  try {
+    const s = JSON.parse(localStorage.getItem(WRITING_STORE_PREFIX + docKey));
+    if (s && Array.isArray(s.versions)) {
+      return { versions: s.versions, cursor: Math.min(Math.max(0, s.cursor | 0), s.versions.length) };
+    }
+  } catch { /* 壊れた保存値は原文扱いに落とす */ }
+  return { versions: [], cursor: 0 };
+}
+
+function saveWritingStore(docKey, store) {
+  const key = WRITING_STORE_PREFIX + docKey;
+  try {
+    if (store.versions.length) localStorage.setItem(key, JSON.stringify(store));
+    else localStorage.removeItem(key);
+  } catch {
+    showToast('編集を保存できませんでした（ブラウザの保存容量）', { iconName: 'alert-triangle', warn: true });
+  }
+}
+
+/** いま表示すべき本文。cursor 0 は原文、それ以外はローカル編集の版 */
+function writingCurrentText(docKey) {
+  const store = readWritingStore(docKey);
+  return store.cursor === 0 ? writingDocs.get(docKey)?.original ?? '' : store.versions[store.cursor - 1];
+}
+
+/** カードの外枠。renderRich から呼ばれ、原文を writingDocs に登録する */
+function writingCardHtml(attrs, content, turn, conv, seq) {
+  const id = attrOf(attrs, 'id');
+  const title = attrOf(attrs, 'title');
+  // 同じ id の文書が別ターンに再登場する（書き直し）ことがあるため、ターン番号も鍵に含める
+  const docKey = `${conv?.relPath || ''}#t${turn?.index ?? 0}#w${id || 'n' + seq}`;
+  writingDocs.set(docKey, { title, original: content });
+  return `<section class="writing-card" data-dockey="${escapeHtml(docKey)}">${writingViewHtml(docKey)}</section>`;
+}
+
+const writingIconBtn = (act, name, label) =>
+  `<button type="button" class="w-act" data-wact="${act}" title="${label}" aria-label="${label}">${icon(name, 16)}</button>`;
+
+/** 閲覧モードの中身（ツールバー＋描画済み本文） */
+function writingViewHtml(docKey) {
+  const store = readWritingStore(docKey);
+  const canUndo = store.cursor > 0;
+  const canRedo = store.cursor < store.versions.length;
+  // 戻す・やり直すは押せるときだけ出す（本家と同じく、区切り線ごと消える）
+  const history =
+    canUndo || canRedo
+      ? (canUndo ? writingIconBtn('undo', 'arrow-back-up', '前の版に戻す') : '') +
+        (canRedo ? writingIconBtn('redo', 'arrow-forward-up', '次の版へ進む') : '') +
+        '<span class="writing-sep"></span>'
+      : '';
+  return (
+    `<div class="writing-toolbar">
+      <button type="button" class="writing-btn" data-wact="edit">${icon('pencil', 14)}<span>編集</span></button>
+      ${canUndo ? '<span class="writing-local" title="この版はこのブラウザにだけ保存されています（元のファイルは変更されません）">ローカル編集</span>' : ''}
+      <span class="writing-tools">${history}${writingIconBtn('copy', 'copy', 'コピー')}${writingIconBtn('download', 'download', 'Markdown をダウンロード')}${writingIconBtn('expand', 'arrows-diagonal', '全画面で表示')}${writingIconBtn('collapse', 'arrows-diagonal-minimize-2', '全画面を閉じる')}</span>
+    </div>
+    <div class="writing-body md">${md.render(writingCurrentText(docKey))}</div>`
+  );
+}
+
+/** 編集モードの中身（保存 / キャンセル＋テキストエリア） */
+function writingEditorHtml(docKey) {
+  return (
+    `<div class="writing-toolbar">
+      <button type="button" class="writing-btn is-primary" data-wact="save">${icon('check', 14)}<span>保存</span></button>
+      <button type="button" class="writing-btn" data-wact="cancel"><span>キャンセル</span></button>
+      <span class="writing-note">保存先はこのブラウザだけで、元のファイルは変更されません</span>
+    </div>
+    <textarea class="writing-editor" spellcheck="false">${escapeHtml(writingCurrentText(docKey))}</textarea>`
+  );
+}
+
+/** カードを描き直す。editing で閲覧⇔編集を切り替える */
+function renderWritingCard(card, editing = false) {
+  card.classList.toggle('is-editing', editing);
+  card.innerHTML = editing ? writingEditorHtml(card.dataset.dockey) : writingViewHtml(card.dataset.dockey);
+  if (editing) {
+    const ta = card.querySelector('.writing-editor');
+    resizeWritingEditor(ta);
+    ta.focus();
+  }
+}
+
+/** テキストエリアを内容の高さに合わせる（全画面時は flex が高さを決めるので触らない） */
+function resizeWritingEditor(ta) {
+  if (ta.closest('.writing-dialog')) return;
+  ta.style.height = 'auto';
+  ta.style.height = `${ta.scrollHeight + 2}px`;
+}
+
+document.addEventListener('input', (ev) => {
+  if (ev.target.matches?.('.writing-editor')) resizeWritingEditor(ev.target);
+});
+
+/* ---------- 全画面表示。カードの DOM ごとモーダルへ移し、閉じると元の位置へ戻す
+             （移動なので、編集途中のテキストや版の状態はそのまま保たれる） */
+
+const writingModal = $('#writing-modal');
+
+/** 全画面表示中のカードと戻り先。{ card, marker } */
+let writingHome = null;
+
+const isWritingViewOpen = () => !writingModal.hidden;
+
+function openWritingView(card) {
+  const marker = document.createComment('writing-card');
+  card.parentNode.insertBefore(marker, card);
+  writingModal.querySelector('.writing-dialog').appendChild(card);
+  writingHome = { card, marker };
+  writingModal.hidden = false;
+}
+
+function closeWritingView() {
+  if (!writingHome) return;
+  const { card, marker } = writingHome;
+  if (marker.parentNode) {
+    marker.parentNode.insertBefore(card, marker);
+    // 全画面中の編集で高さが変わっていることがあるため測り直す
+    const ta = card.querySelector('.writing-editor');
+    if (ta) resizeWritingEditor(ta);
+  } else {
+    // 会話が描き直されて戻り先が消えていたら、カードは捨てる（本文側に新しいカードがある）
+    card.remove();
+  }
+  marker.remove();
+  writingHome = null;
+  writingModal.hidden = true;
+}
+
+$('#writing-backdrop').addEventListener('click', closeWritingView);
+
+/* ツールバーの操作。カードは本文とモーダルのどちらにも居られるため document で拾う */
+document.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('[data-wact]');
+  if (!btn) return;
+  const card = btn.closest('.writing-card');
+  const docKey = card.dataset.dockey;
+  const act = btn.dataset.wact;
+
+  if (act === 'edit') {
+    renderWritingCard(card, true);
+  } else if (act === 'cancel') {
+    renderWritingCard(card);
+  } else if (act === 'save') {
+    const text = card.querySelector('.writing-editor').value;
+    if (text !== writingCurrentText(docKey)) {
+      const store = readWritingStore(docKey);
+      // いま見ている版より先の「やり直し」は捨てて、新しい版を積む
+      store.versions = store.versions.slice(0, store.cursor);
+      store.versions.push(text);
+      store.cursor = store.versions.length;
+      saveWritingStore(docKey, store);
+    }
+    renderWritingCard(card);
+  } else if (act === 'undo' || act === 'redo') {
+    const store = readWritingStore(docKey);
+    store.cursor = Math.min(Math.max(0, store.cursor + (act === 'undo' ? -1 : 1)), store.versions.length);
+    saveWritingStore(docKey, store);
+    renderWritingCard(card);
+  } else if (act === 'copy') {
+    await navigator.clipboard.writeText(writingCurrentText(docKey));
+    btn.innerHTML = icon('check', 16);
+    btn.classList.add('done');
+    setTimeout(() => {
+      btn.innerHTML = icon('copy', 16);
+      btn.classList.remove('done');
+    }, 1200);
+  } else if (act === 'download') {
+    const title = writingDocs.get(docKey)?.title || 'document';
+    const url = URL.createObjectURL(new Blob([writingCurrentText(docKey)], { type: 'text/markdown' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.replace(/[\\/:*?"<>|]/g, '_')}.md`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } else if (act === 'expand') {
+    openWritingView(card);
+  } else if (act === 'collapse') {
+    closeWritingView();
+  }
+});
+
 function gotoHit(delta) {
   if (!hitMarks.length) return;
   hitIndex = (hitIndex + delta + hitMarks.length) % hitMarks.length;
@@ -1878,6 +2085,7 @@ function goHome() {
   convSeq++; // 読み込み中の会話があっても描画させない
   closeActivity();
   closeCitePop();
+  closeWritingView();
   activeConv = null;
   state.activeId = '';
   el.conversation.hidden = true;
@@ -2181,6 +2389,7 @@ document.addEventListener('keydown', (ev) => {
 
   if (ev.key === 'Escape') {
     if (isImgViewOpen()) closeImageView();
+    else if (isWritingViewOpen()) closeWritingView();
     else if (isSearchOpen()) closeSearch();
     else if (isSettingsOpen()) closeSettings();
     else if (window.askModal?.isOpen()) window.askModal.close();

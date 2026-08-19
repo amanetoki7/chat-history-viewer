@@ -87,6 +87,13 @@ const ICONS = {
     'c1 .608 2.296 .07 2.572 -1.065"/>' +
     '<path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/>',
   'arrow-back-up': '<path d="M9 14l-4 -4l4 -4"/><path d="M5 10h11a4 4 0 1 1 0 8h-1"/>',
+  'arrow-forward-up': '<path d="M15 14l4 -4l-4 -4"/><path d="M19 10h-11a4 4 0 1 0 0 8h1"/>',
+  download:
+    '<path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M7 11l5 5l5 -5"/><path d="M12 4l0 12"/>',
+  'arrows-diagonal':
+    '<path d="M16 4l4 0l0 4"/><path d="M14 10l6 -6"/><path d="M8 20l-4 0l0 -4"/><path d="M4 20l6 -6"/>',
+  'arrows-diagonal-minimize-2':
+    '<path d="M18 10h-4v-4"/><path d="M20 4l-6 6"/><path d="M6 14h4v4"/><path d="M10 14l-6 6"/>',
   server:
     '<path d="M3 4m0 3a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3z"/>' +
     '<path d="M3 12m0 3a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3z"/>' +

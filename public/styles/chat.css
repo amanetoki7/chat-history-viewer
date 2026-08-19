@@ -435,8 +435,105 @@ details.reasoning > .block-body {
 }
 .md .nav-card-date { margin-top: auto; font-size: 11.5px; color: var(--text-faint); }
 
+/* ------------------------------- 文章作成ドキュメント（:::writing のカード） */
+
+/* ChatGPT の canvas 文書。全画面表示ではカードごと #writing-modal へ移動するため、
+   ここの規則は .md 配下に限定せず .writing-card 起点で書く */
+.writing-card {
+  margin: .9em 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: var(--bg-elev);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 24px rgba(0, 0, 0, .05);
+  overflow: hidden;
+}
+
+.writing-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px 0;
+}
+
+/* 「編集」「保存」「キャンセル」のピル型ボタン */
+.writing-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 13px;
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 999px;
+  font: inherit; font-size: 12.5px; font-weight: 650; color: var(--text);
+  cursor: pointer;
+  transition: background .12s;
+}
+.writing-btn:hover { background: var(--bg-hover); }
+.writing-btn.is-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.writing-btn.is-primary:hover { filter: brightness(1.08); }
+
+/* ローカル編集の版を表示中であることを示すバッジ（title に説明あり） */
+.writing-local {
+  font-size: 11px; color: var(--text-faint);
+  border: 1px solid var(--border-soft); border-radius: 999px;
+  padding: 3px 9px;
+  cursor: help;
+}
+
+.writing-tools { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.writing-note { margin-left: auto; font-size: 11px; color: var(--text-faint); text-align: right; }
+
+/* 右側のアイコン操作（戻す / やり直す / コピー / ダウンロード / 全画面） */
+.writing-card .w-act {
+  display: grid; place-items: center;
+  width: 30px; height: 30px; padding: 0;
+  background: transparent; border: 0; border-radius: 8px;
+  color: var(--text-dim); cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.writing-card .w-act:hover { background: var(--bg-hover); color: var(--text); }
+.writing-card .w-act.done { color: var(--chat-link-color, var(--accent)); }
+.writing-sep { width: 1px; height: 16px; background: var(--border); margin: 0 6px; }
+
+.writing-body { padding: 6px 36px 36px; }
+
+.writing-editor {
+  display: block; width: 100%;
+  min-height: 220px;
+  padding: 14px 36px 36px;
+  background: transparent; border: 0; outline: none; resize: none;
+  font: inherit; line-height: inherit; color: inherit;
+}
+
+/* 「全画面を閉じる」はモーダル内でだけ出し、「全画面で表示」と入れ替える */
+.writing-card .w-act[data-wact="collapse"] { display: none; }
+.writing-dialog .writing-card .w-act[data-wact="collapse"] { display: grid; }
+.writing-dialog .writing-card .w-act[data-wact="expand"] { display: none; }
+
+/* ---------- 全画面表示（.writing-card が index.html の #writing-modal へ移動） */
+
+.writing-modal {
+  position: fixed; inset: 0; z-index: 65;
+  /* .conversation の外なのでチャット本文相当の文字設定をここで与える */
+  font-family: var(--sans); font-size: 14.5px; line-height: 1.8;
+}
+.writing-backdrop { position: absolute; inset: 0; background: #0008; }
+.writing-dialog {
+  position: absolute; inset: 0; margin: auto;
+  width: min(920px, 100% - 28px);
+  height: min(100% - 28px, 1400px);
+}
+.writing-dialog .writing-card {
+  display: flex; flex-direction: column;
+  height: 100%; margin: 0;
+  box-shadow: var(--shadow);
+}
+.writing-dialog .writing-body { flex: 1; overflow-y: auto; padding: 8px 48px 48px; }
+/* インライン表示で付いた内容フィット用の高さ（style 属性）は flex に譲る */
+.writing-dialog .writing-editor { flex: 1; overflow-y: auto; height: auto !important; min-height: 0; }
+
 /* -------------------------------------------------------------- narrow */
 
 @media (max-width: 1180px) {
   .conversation { --chat-padding: 20px 20px 120px; }
+}
+
+@media (max-width: 700px) {
+  .writing-body, .writing-editor { padding: 6px 18px 22px; }
+  .writing-dialog { width: calc(100% - 12px); height: calc(100% - 12px); }
+  .writing-dialog .writing-body { padding: 8px 20px 28px; }
 }
