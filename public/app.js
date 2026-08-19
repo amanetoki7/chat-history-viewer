@@ -1599,6 +1599,7 @@ const setReaderScroll = (top) => el.reader.scrollTo({ top, behavior: 'instant' }
  * @param {{keepScroll?: boolean}} options keepScroll=true なら読書位置を保つ（監視による再読み込み用）
  */
 async function openConversation(relPath, focusTurn, { keepScroll = false } = {}) {
+  flushWritingEdits(); // カードが描き直される前に、打ちかけの編集を確定する
   // アクティビティは開いていた会話のものなので、別の会話へ移るときに閉じる
   if (relPath !== state.activeId) closeActivity();
   clearUpdatedDot(relPath); // 開いたら「更新あり」の青ドットは消える
@@ -1870,10 +1871,13 @@ $('#imgview-backdrop').addEventListener('click', closeImageView);
 
 /*
  * ChatGPT の文章作成（canvas）は Markdown へ `:::writing{…} … :::` として
- * エクスポートされる。これを本家風のドキュメントカードとして描画し、
- * その場で編集できるようにする。
+ * エクスポートされる。これを本家風のドキュメントカードとして描画する。
  *
- *   - 編集はこのブラウザ（localStorage）にだけ版として積み上がり、
+ *   - 本文は常に編集可能（クリックしてそのまま打ち始める）。本家の canvas と
+ *     同じく、太字・見出しなどの描画を保ったまま直接編集する
+ *   - 保存は自動。入力が落ち着く・フォーカスが外れる・別の操作をする、の
+ *     いずれかで版として確定し、ひと続きの編集は 1 つの版にまとまる
+ *   - 版はこのブラウザ（localStorage）にだけ積み上がり、
  *     元の .md ファイルは一切変更しない
  *   - 「戻す / やり直す」で版を行き来でき、いちばん最初まで戻すと
  *     実際の履歴ファイルに残っている内容（原文）に復元される
@@ -1918,14 +1922,22 @@ function writingCardHtml(attrs, content, turn, conv, seq) {
   // 同じ id の文書が別ターンに再登場する（書き直し）ことがあるため、ターン番号も鍵に含める
   const docKey = `${conv?.relPath || ''}#t${turn?.index ?? 0}#w${id || 'n' + seq}`;
   writingDocs.set(docKey, { title, original: content });
-  return `<section class="writing-card" data-dockey="${escapeHtml(docKey)}">${writingViewHtml(docKey)}</section>`;
+  return `<section class="writing-card" data-dockey="${escapeHtml(docKey)}">${writingCardInnerHtml(docKey)}</section>`;
 }
 
 const writingIconBtn = (act, name, label) =>
   `<button type="button" class="w-act" data-wact="${act}" title="${label}" aria-label="${label}">${icon(name, 16)}</button>`;
 
-/** 閲覧モードの中身（ツールバー＋描画済み本文） */
-function writingViewHtml(docKey) {
+/*
+ * 本文の描画にはリンクチップ・コードコピー等の装飾を持たないプレーンな
+ * markdown-it を使い、DOM が素直な HTML（h1〜h6 / p / strong / em …）に
+ * なるようにしておく。contenteditable での編集後、Markdown への逆変換は
+ * その語彙だけを相手にすればよい。
+ */
+const mdPlain = window.markdownit({ html: false, linkify: true, breaks: true });
+
+/** ツールバーの中身。版の状態が変わるたびにここだけ描き直す（本文には触らない） */
+function writingToolbarInnerHtml(docKey) {
   const store = readWritingStore(docKey);
   const canUndo = store.cursor > 0;
   const canRedo = store.cursor < store.versions.length;
@@ -1936,43 +1948,31 @@ function writingViewHtml(docKey) {
         (canRedo ? writingIconBtn('redo', 'arrow-forward-up', '次の版へ進む') : '') +
         '<span class="writing-sep"></span>'
       : '';
+  const left = canUndo
+    ? '<span class="writing-local" title="この版はこのブラウザにだけ自動保存されています（元のファイルは変更されません）">ローカル編集</span>'
+    : '<span class="writing-note">直接編集できます（自動保存 · 元のファイルは変更されません）</span>';
   return (
-    `<div class="writing-toolbar">
-      <button type="button" class="writing-btn" data-wact="edit">${icon('pencil', 14)}<span>編集</span></button>
-      ${canUndo ? '<span class="writing-local" title="この版はこのブラウザにだけ保存されています（元のファイルは変更されません）">ローカル編集</span>' : ''}
-      <span class="writing-tools">${history}${writingIconBtn('copy', 'copy', 'コピー')}${writingIconBtn('download', 'download', 'Markdown をダウンロード')}${writingIconBtn('expand', 'arrows-diagonal', '拡大表示')}</span>
-    </div>
-    <div class="writing-body md">${md.render(writingCurrentText(docKey))}</div>`
+    `${left}<span class="writing-tools">${history}${writingIconBtn('copy', 'copy', 'コピー')}` +
+    `${writingIconBtn('download', 'download', 'Markdown をダウンロード')}${writingIconBtn('expand', 'arrows-diagonal', '拡大表示')}</span>`
   );
 }
 
-/*
- * WYSIWYG 編集。太字・見出しなどの描画を保ったまま contenteditable で直接編集し、
- * 保存時に DOM を Markdown へ逆変換して版に積む。
- *
- * 編集用の描画にはリンクチップ・コードコピー等の装飾を持たないプレーンな
- * markdown-it を使い、DOM が素直な HTML（h1〜h6 / p / strong / em …）に
- * なるようにしておく。逆変換はその語彙だけを相手にすればよい。
- */
-const mdPlain = window.markdownit({ html: false, linkify: true, breaks: true });
-
-/** 編集モードの中身（保存 / キャンセル＋描画されたままの編集領域） */
-function writingEditorHtml(docKey) {
+/** カードの中身。本文は常に contenteditable で、描画されたまま直接編集できる */
+function writingCardInnerHtml(docKey) {
   return (
-    `<div class="writing-toolbar">
-      <button type="button" class="writing-btn is-primary" data-wact="save">${icon('check', 14)}<span>保存</span></button>
-      <button type="button" class="writing-btn" data-wact="cancel"><span>キャンセル</span></button>
-      <span class="writing-note">保存先はこのブラウザだけで、元のファイルは変更されません</span>
-    </div>
+    `<div class="writing-toolbar">${writingToolbarInnerHtml(docKey)}</div>
     <div class="writing-body md writing-editable" contenteditable="true" spellcheck="false">${mdPlain.render(writingCurrentText(docKey))}</div>`
   );
 }
 
-/** カードを描き直す。editing で閲覧⇔編集を切り替える */
-function renderWritingCard(card, editing = false) {
-  card.classList.toggle('is-editing', editing);
-  card.innerHTML = editing ? writingEditorHtml(card.dataset.dockey) : writingViewHtml(card.dataset.dockey);
-  if (editing) card.querySelector('.writing-editable').focus();
+/** カード全体（ツールバー＋本文）を描き直す。版の移動後などに使う */
+function renderWritingCard(card) {
+  card.innerHTML = writingCardInnerHtml(card.dataset.dockey);
+  writingSessions.delete(card); // 本文を差し替えたので編集セッションも仕切り直す
+}
+
+function updateWritingToolbar(card) {
+  card.querySelector('.writing-toolbar').innerHTML = writingToolbarInnerHtml(card.dataset.dockey);
 }
 
 // 編集領域への貼り付けはプレーンテキストとして挿入する
@@ -1982,6 +1982,72 @@ document.addEventListener('paste', (ev) => {
   ev.preventDefault();
   document.execCommand('insertText', false, ev.clipboardData.getData('text/plain'));
 });
+
+/* ---------- 自動保存。入力が落ち着いたら（またはフォーカスが外れたら）版として確定する */
+
+/** 入力が止まってから保存するまでの待ち時間（ms） */
+const WRITING_SAVE_DELAY = 1200;
+
+/** まだ保存していない編集を持つカード */
+const writingDirty = new Set();
+let writingSaveTimer = null;
+
+/**
+ * ひと続きの編集（フォーカスがカードの外へ出るまで）は 1 つの版にまとめる。
+ * card → その編集で積んだ版の位置。同じ位置にいるあいだの自動保存は版を置き換える
+ */
+const writingSessions = new WeakMap();
+
+/** カードの未保存の編集を版として確定する（変更が無ければ何もしない） */
+function flushWritingCard(card) {
+  const docKey = card.dataset.dockey;
+  const body = card.querySelector('.writing-editable');
+  if (!docKey || !body) return;
+  const text = writingBlocksMd(body);
+  // 逆変換は空行の詰め方などで原文と一致しないことがあるため、意味（描画結果）で比較する
+  if (mdPlain.render(text) === mdPlain.render(writingCurrentText(docKey))) return;
+  const store = readWritingStore(docKey);
+  if (writingSessions.get(card) === store.cursor && store.cursor > 0) {
+    store.versions[store.cursor - 1] = text; // 同じ編集セッション内は最新の内容で置き換える
+  } else {
+    store.versions = store.versions.slice(0, store.cursor); // 先の「やり直し」は捨てる
+    store.versions.push(text);
+    store.cursor = store.versions.length;
+    writingSessions.set(card, store.cursor);
+  }
+  saveWritingStore(docKey, store);
+  updateWritingToolbar(card); // 「戻す」やバッジを最新にする（本文とキャレットには触らない）
+}
+
+/** 保留中の自動保存をすべて確定する。会話の切り替え・各種操作の前にも呼ばれる */
+function flushWritingEdits() {
+  clearTimeout(writingSaveTimer);
+  writingSaveTimer = null;
+  for (const card of writingDirty) {
+    if (card.isConnected) flushWritingCard(card);
+  }
+  writingDirty.clear();
+}
+
+document.addEventListener('input', (ev) => {
+  const card = ev.target.classList?.contains('writing-editable') && ev.target.closest('.writing-card');
+  if (!card) return;
+  writingDirty.add(card);
+  clearTimeout(writingSaveTimer);
+  writingSaveTimer = setTimeout(flushWritingEdits, WRITING_SAVE_DELAY);
+});
+
+// フォーカスが外れたら即保存。カードの外へ出たときは編集セッションも締める
+// （次の編集はまた新しい版として積まれる）
+document.addEventListener('focusout', (ev) => {
+  const card = ev.target.closest?.('.writing-card');
+  if (!card) return;
+  flushWritingEdits();
+  if (!card.contains(ev.relatedTarget)) writingSessions.delete(card);
+});
+
+// タブを閉じる・離れるときの取りこぼし防止（localStorage への書き込みは同期）
+window.addEventListener('pagehide', flushWritingEdits);
 
 /* ---------- 編集領域の DOM → Markdown 逆変換 */
 
@@ -2156,32 +2222,16 @@ function closeWritingView() {
 
 $('#writing-view-close').addEventListener('click', closeWritingView);
 
-/* ツールバーの操作。カードは本文とモーダルのどちらにも居られるため document で拾う */
+/* ツールバーの操作。カードは本文と拡大表示のどちらにも居られるため document で拾う */
 document.addEventListener('click', async (ev) => {
   const btn = ev.target.closest('[data-wact]');
   if (!btn) return;
   const card = btn.closest('.writing-card');
   const docKey = card.dataset.dockey;
   const act = btn.dataset.wact;
+  flushWritingEdits(); // 打ちかけの編集を確定してから操作する
 
-  if (act === 'edit') {
-    renderWritingCard(card, true);
-  } else if (act === 'cancel') {
-    renderWritingCard(card);
-  } else if (act === 'save') {
-    const text = writingBlocksMd(card.querySelector('.writing-editable'));
-    // 逆変換は空行の詰め方などで原文と一致しないことがあるため、
-    // 「変更なし」の判定は描画結果（意味）の比較で行う
-    if (mdPlain.render(text) !== mdPlain.render(writingCurrentText(docKey))) {
-      const store = readWritingStore(docKey);
-      // いま見ている版より先の「やり直し」は捨てて、新しい版を積む
-      store.versions = store.versions.slice(0, store.cursor);
-      store.versions.push(text);
-      store.cursor = store.versions.length;
-      saveWritingStore(docKey, store);
-    }
-    renderWritingCard(card);
-  } else if (act === 'undo' || act === 'redo') {
+  if (act === 'undo' || act === 'redo') {
     const store = readWritingStore(docKey);
     store.cursor = Math.min(Math.max(0, store.cursor + (act === 'undo' ? -1 : 1)), store.versions.length);
     saveWritingStore(docKey, store);
@@ -2222,6 +2272,7 @@ function updateHitLabel() {
 /** ロゴから戻るホーム状態。検索語と開いている会話を捨て、URL のハッシュも消す。 */
 function goHome() {
   convSeq++; // 読み込み中の会話があっても描画させない
+  flushWritingEdits(); // 会話ごと消す前に、打ちかけの編集を確定する
   closeActivity();
   closeCitePop();
   closeWritingView();
