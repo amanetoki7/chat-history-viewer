@@ -159,9 +159,14 @@ function newReasoning() {
 /**
  * 前置き・思考・検索結果と、可視回答の metadata（情報源）から
  * 画面へ渡す reasoning オブジェクトを組み立てる。空なら null。
+ * 思考が無くても情報源（ウェブ・メモリ）があれば返す（フッターの「情報源」ボタン用）。
  */
 function finishReasoning(p, finalMeta) {
-  if (!p.preamble && !p.recap && !p.toolRows.length && !p.activity.length) return null;
+  // 過去のチャット（メモリ）への引用。エクスポートには参照先のタイトル等が
+  // 含まれないため、memcite マーカーの数だけを拾う
+  const memoryCount = (finalMeta.content_references || []).filter(
+    (r) => r?.type === 'hidden' && /memcite/.test(r.matched_text || '')
+  ).length;
 
   // 情報源。本家の並びに合わせ、sources_footnote → 回答の検索結果 → 思考中の検索結果。
   // URL で重複を除き、後から来た同一 URL は欠けている項目（snippet 等）だけを埋める。
@@ -195,6 +200,10 @@ function finishReasoning(p, finalMeta) {
   for (const g of finalMeta.search_result_groups || []) for (const e of g?.entries || []) add(e);
   for (const e of p.toolEntries) add(e);
 
+  if (!p.preamble && !p.recap && !p.toolRows.length && !p.activity.length && !sources.length && !memoryCount) {
+    return null;
+  }
+
   return {
     preamble: p.preamble,
     recap: p.recap,
@@ -202,6 +211,7 @@ function finishReasoning(p, finalMeta) {
     toolRows: p.toolRows,
     activity: p.activity,
     sources,
+    memoryCount,
   };
 }
 
@@ -216,6 +226,7 @@ function mergeReasoning(a, b) {
   a.activity.push(...b.activity);
   const seen = new Set(a.sources.map((s) => canonicalUrl(s.url)));
   for (const s of b.sources) if (!seen.has(canonicalUrl(s.url))) a.sources.push(s);
+  a.memoryCount = (a.memoryCount || 0) + (b.memoryCount || 0);
   return a;
 }
 

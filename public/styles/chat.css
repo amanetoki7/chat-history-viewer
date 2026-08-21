@@ -139,6 +139,16 @@ html[data-theme="light"] {
 .turn-actions .act.done { color: var(--chat-link-color); }
 @media (hover: none) { .turn-actions { opacity: 1; } }
 
+/* フッターの「情報源」（本家相当）。検索ありはヒットしたドメイン先頭 3 つの favicon の重なり、
+   検索なし（メモリ引用など）はライブラリアイコン。クリックで情報源パネルが開く */
+.turn-actions .sources-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  width: auto; padding: 0 9px;
+  font: inherit; font-size: 12.5px;
+}
+/* 「検索の詳細を表示する」がオンのあいだは思考の展開から開けるため出さない */
+html.show-search-detail .turn-actions .sources-btn.for-search { display: none; }
+
 .bubble {
   border: 1px solid var(--border-soft);
   border-radius: var(--bubble-radius);

@@ -192,6 +192,38 @@ function reasoningBlock(turn) {
   );
 }
 
+/**
+ * 吹き出し下の「情報源」ボタン（本家のフッターに相当）。情報源パネルを開く。
+ *   - 検索だけの思考（既定で非表示）：ヒットしたドメイン先頭 3 つの favicon を重ねて出す。
+ *     「検索の詳細を表示する」がオンのあいだは CSS（.for-search）で隠す
+ *   - 検索ツール呼び出しが無い情報源（メモリ引用など）：ライブラリアイコンで常に出す
+ *   - 本文のある思考を伴う検索：思考の展開から開けるため出さない
+ */
+function sourcesButtonHtml(turn) {
+  const r = turn.reasoning;
+  if (!r || !(r.sources?.length || r.memoryCount)) return '';
+  const searched = r.activity.some((a) => a.kind === 'search') || r.toolRows.some((w) => w.kind === 'web');
+  if (searched && !isSearchOnlyReasoning(r)) return '';
+
+  const domains = [];
+  for (const s of r.sources || []) {
+    let d = '';
+    try {
+      d = new URL(s.url).hostname;
+    } catch {}
+    if (d && !domains.includes(d)) domains.push(d);
+    if (domains.length >= 3) break;
+  }
+  const ico =
+    searched && domains.length
+      ? `<span class="fav-stack">${domains.map((d) => favIcoHtml(d)).join('')}</span>`
+      : icon('book', 15);
+  return (
+    `<button class="act sources-btn${searched ? ' for-search' : ''}" data-act="sources"` +
+    ` data-turn="${turn.index}" title="情報源を表示" aria-label="情報源">${ico}<span>情報源</span></button>`
+  );
+}
+
 /** ChatGPT（Native）の記事カード（nav_list）。画像・出典元・タイトル・日付の横並びカード。 */
 function navCardsHtml(items) {
   if (!items?.length) return '';
@@ -1608,6 +1640,7 @@ function renderTurnHtml(turn, conv) {
         <button class="act" data-act="copy" data-turn="${turn.index}" title="コピー" aria-label="コピー">${icon('copy')}</button>
         <button class="act" data-act="share" data-turn="${turn.index}" title="共有（この発言へのリンク）" aria-label="共有">${icon('share')}</button>
         <button class="act" data-act="edit" data-turn="${turn.index}" title="Obsidian で編集" aria-label="編集">${icon('pencil')}</button>
+        ${turn.role === 'assistant' ? sourcesButtonHtml(turn) : ''}
       </div>
     </div>`;
 }
@@ -1821,6 +1854,11 @@ async function runTurnAction(btn, conv) {
       btn.classList.remove('done');
     }, 1200);
   };
+
+  if (btn.dataset.act === 'sources') {
+    if (turn?.reasoning) openSources(turn.reasoning);
+    return;
+  }
 
   if (btn.dataset.act === 'copy') {
     await navigator.clipboard.writeText(turn.text);
@@ -2345,6 +2383,8 @@ const activityBackdrop = $('#activity-backdrop');
 
 /** 表示中の思考。同じリンクをもう一度押したときの「閉じる」判定に使う */
 let activeReasoning = null;
+/** パネルの種類。'activity'（思考の時系列 + 情報源）| 'sources'（情報源のみ） */
+let activePanelKind = 'activity';
 
 function isActivityOpen() {
   return !activityPanel.hidden;
@@ -2366,10 +2406,15 @@ function closeActivity() {
   }, 400);
 }
 
-/** 本家のアクティビティパネル相当。思考の時系列と情報源の一覧を出す。
-    開くリンクはトグルとして働き、同じ内容で開いていれば閉じる。 */
-function openActivity(r) {
-  if (isActivityOpen() && !activityPanel.classList.contains('closing') && activeReasoning === r) {
+/** 本家のアクティビティ / 情報源パネル相当。開くリンクはトグルとして働き、
+    同じ内容・同じ種類で開いていれば閉じる。 */
+function openPanel(r, kind) {
+  if (
+    isActivityOpen() &&
+    !activityPanel.classList.contains('closing') &&
+    activeReasoning === r &&
+    activePanelKind === kind
+  ) {
     closeActivity();
     return;
   }
@@ -2378,14 +2423,26 @@ function openActivity(r) {
   activityPanel.classList.remove('closing');
   activityBackdrop.classList.remove('closing');
   activeReasoning = r;
-  const dur = fmtThinkDuration(r.durationSec);
-  $('#activity-title').innerHTML =
-    'アクティビティ' + (dur ? `<span class="activity-duration"> · ${escapeHtml(dur)}</span>` : '');
-  $('#activity-body').innerHTML = activityHtml(r);
+  activePanelKind = kind;
+  activityPanel.setAttribute('aria-label', kind === 'sources' ? '情報源' : 'アクティビティ');
+  if (kind === 'sources') {
+    $('#activity-title').textContent = '情報源';
+    $('#activity-body').innerHTML = sourceSectionsHtml(r);
+  } else {
+    const dur = fmtThinkDuration(r.durationSec);
+    $('#activity-title').innerHTML =
+      'アクティビティ' + (dur ? `<span class="activity-duration"> · ${escapeHtml(dur)}</span>` : '');
+    $('#activity-body').innerHTML = activityHtml(r);
+  }
   activityPanel.hidden = false;
   activityBackdrop.hidden = false; // 背景はモバイルのモーダル表示時だけ CSS で見える
   $('#activity-body').scrollTop = 0;
 }
+
+/** 思考の時系列 + 情報源（メモリ・ウェブ）のパネル */
+const openActivity = (r) => openPanel(r, 'activity');
+/** 情報源（メモリ・ウェブ）だけのパネル。フッターの「情報源」ボタンから開く */
+const openSources = (r) => openPanel(r, 'sources');
 
 const dtSource = new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -2445,8 +2502,25 @@ function activityHtml(r) {
     </div>`;
   }
 
+  return html + sourceSectionsHtml(r);
+}
+
+/** 情報源の節（メモリ · N / ウェブ · N）。アクティビティと情報源の両パネルで使う。 */
+function sourceSectionsHtml(r) {
+  let html = '';
+
+  // 過去のチャット（メモリ）への引用。エクスポートに参照先のタイトル・抜粋が
+  // 含まれないため、本家と違い件数と汎用の行だけを出す
+  if (r.memoryCount) {
+    html += `<div class="activity-section">メモリ · ${fmtInt(r.memoryCount)}</div>
+      <div class="activity-source activity-memory">
+        <span class="activity-source-site">${icon('messages', 14)}<span>Past chat</span></span>
+        <span class="activity-source-snippet">過去のチャットの記憶を参照しています（参照先はエクスポートに含まれていません）。</span>
+      </div>`;
+  }
+
   if (r.sources?.length) {
-    html += `<div class="activity-section">情報源 · ${fmtInt(r.sources.length)}</div>`;
+    html += `<div class="activity-section">ウェブ · ${fmtInt(r.sources.length)}</div>`;
     html += r.sources
       .map((s) => {
         let domain = '';
