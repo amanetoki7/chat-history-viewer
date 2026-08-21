@@ -396,6 +396,29 @@ const dtShort = new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: '2-di
 
 const fmtDate = (ms, full) => (ms ? (full ? dtFull : dtShort).format(new Date(ms)) : '');
 
+/* 「3時間前」「昨日」などの相対表記（numeric:'auto' が 昨日/一昨日 を出してくれる） */
+const rtf = new Intl.RelativeTimeFormat('ja-JP', { numeric: 'auto' });
+
+/** その日の 0 時の時刻（「昨日」を経過時間ではなく暦日で判定するため） */
+const startOfDay = (ms) => {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
+function fmtRelTime(ms) {
+  if (!ms) return '';
+  const sec = Math.floor((Date.now() - ms) / 1000);
+  if (sec < 60) return 'たった今';
+  if (sec < 3600) return rtf.format(-Math.floor(sec / 60), 'minute');
+  if (sec < 86400) return rtf.format(-Math.floor(sec / 3600), 'hour');
+  const days = Math.round((startOfDay(Date.now()) - startOfDay(ms)) / 86400000);
+  if (days < 7) return rtf.format(-days, 'day');
+  if (days < 30) return rtf.format(-Math.floor(days / 7), 'week');
+  if (days < 365) return rtf.format(-Math.floor(days / 30), 'month');
+  return rtf.format(-Math.floor(days / 365), 'year');
+}
+
 function debounce(fn, ms) {
   let t;
   return (...args) => {
@@ -903,6 +926,7 @@ function itemHtml(item) {
       <div class="ri-head">
         ${sourceLogo(item.source, meta)}
         <span class="ri-title">${highlightText(item.title, state.terms)}</span>        ${item.favorite ? `<span class="ri-star" title="お気に入り">${icon('star-filled', 13)}</span>` : ''}
+        ${showListTime ? `<span class="ri-time" title="${fmtDate(itemTime(item), true)}">${fmtRelTime(itemTime(item))}</span>` : ''}
         ${showUpdateDots && updatedDots.has(item.relPath) ? `<span class="ri-dot" title="更新があります"></span>` : ''}
       </div>
       <div class="ri-meta">
@@ -1130,6 +1154,24 @@ function setShowUpdateDots(on) {
     updatedDots.clear(); // 付いているドットは repaintItems で消える
   }
 }
+
+/**
+ * 一覧の各行の右端に出す相対時間（「3時間前」「昨日」など）を表示するか。
+ * 設定画面の「一般」で切り替える。既定は表示。
+ */
+const SHOW_LIST_TIME_KEY = 'chv-show-list-time';
+let showListTime = localStorage.getItem(SHOW_LIST_TIME_KEY) !== '0';
+
+function setShowListTime(on) {
+  showListTime = on;
+  if (on) localStorage.removeItem(SHOW_LIST_TIME_KEY);
+  else localStorage.setItem(SHOW_LIST_TIME_KEY, '0');
+}
+
+// 「5分前」が古いままにならないよう毎分描き直す（表記が変わった行だけ書き換わる）
+setInterval(() => {
+  if (showListTime && state.items.length) repaintItems();
+}, 60_000);
 
 /* -------------------------------------------------- 設定（プロバイダー別 UI） */
 
@@ -1369,6 +1411,11 @@ function renderGeneralPane() {
       ${switchHtml('snippets-switch', 'ハイライト行を表示', showSnippets)}
     </div>
     <p class="settings-note">オフにすると、一致した発言の抜粋（ハイライト行）を一覧に出しません。</p>
+    <div class="setting-row">
+      <label>時間表示</label>
+      ${switchHtml('list-time-switch', '一覧に相対時間を表示', showListTime)}
+    </div>
+    <p class="settings-note">オフにすると、一覧の各行の右端に出る相対時間（「3時間前」「昨日」など）を出しません。</p>
     <div class="settings-section-label">同期</div>
     <div class="setting-row">
       <label>更新ドット</label>
@@ -1390,6 +1437,12 @@ function renderGeneralPane() {
   wireSwitch('snippets-switch', (on) => {
     setShowSnippets(on);
     repaintItems(); // 抜粋の有無だけの変更なので読み込み直さない
+    renderGeneralPane();
+  });
+
+  wireSwitch('list-time-switch', (on) => {
+    setShowListTime(on);
+    repaintItems(); // 時間表示の有無だけの変更なので読み込み直さない
     renderGeneralPane();
   });
 
