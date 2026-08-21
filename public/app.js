@@ -2649,9 +2649,24 @@ function activityHtml(r) {
 function sourceSectionsHtml(r) {
   let html = '';
 
-  // 過去のチャット（メモリ）への引用。エクスポートに参照先のタイトル・抜粋が
-  // 含まれないため、本家と違い件数と汎用の行だけを出す
-  if (r.memoryCount) {
+  // 過去のチャット（メモリ）への引用。参照先のタイトル・抜粋はエクスポータが
+  // conversation_context_sources API から保存したもの（memorySources）。
+  // 保存メモリ（Memory）はリンク先が無く、過去チャット（Past chat）は本家の会話へリンクする
+  if (r.memorySources?.length) {
+    html += `<div class="activity-section">メモリ · ${fmtInt(r.memorySources.length)}</div>`;
+    html += r.memorySources
+      .map((m) => {
+        const date = m.date ? dtSource.format(new Date(m.date)) + ' — ' : '';
+        const body = `<span class="activity-source-site">${icon(m.kind === 'general_memory' ? 'sparkles' : 'messages', 14)}<span>${escapeHtml(m.attribution)}</span></span>
+          ${m.title ? `<span class="activity-source-title">${escapeHtml(m.title)}</span>` : ''}
+          ${m.snippet ? `<span class="activity-source-snippet">${escapeHtml(date + m.snippet)}</span>` : ''}`;
+        return m.url
+          ? `<a class="activity-source activity-memory" href="${escapeHtml(m.url)}" target="_blank" rel="noopener">${body}</a>`
+          : `<div class="activity-source activity-memory">${body}</div>`;
+      })
+      .join('');
+  } else if (r.memoryCount) {
+    // 参照先の無い古いエクスポートは件数と汎用の行だけを出す
     html += `<div class="activity-section">メモリ · ${fmtInt(r.memoryCount)}</div>
       <div class="activity-source activity-memory">
         <span class="activity-source-site">${icon('messages', 14)}<span>Past chat</span></span>

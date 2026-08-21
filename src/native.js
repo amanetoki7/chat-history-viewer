@@ -163,12 +163,24 @@ function newReasoning() {
  * 画面へ渡す reasoning オブジェクトを組み立てる。空なら null。
  * 思考が無くても情報源（ウェブ・メモリ）があれば返す（フッターの「情報源」ボタン用）。
  */
-function finishReasoning(p, finalMeta) {
-  // 過去のチャット（メモリ）への引用。エクスポートには参照先のタイトル等が
-  // 含まれないため、memcite マーカーの数だけを拾う
-  const memoryCount = (finalMeta.content_references || []).filter(
-    (r) => r?.type === 'hidden' && /memcite/.test(r.matched_text || '')
-  ).length;
+function finishReasoning(p, finalMeta, ctxItems) {
+  // 過去のチャット（メモリ）への引用。参照先のタイトル・抜粋は
+  // conversation_context_sources の応答（ctxItems）から取る。
+  // それが無い古いエクスポートでは memcite マーカーの数だけを拾う
+  const memorySources = (ctxItems || []).map((it) => ({
+    uuid: it.citation_uuid || null,
+    kind: it.conversation_context_type || '', // 'general_memory' | 'past_conversation'
+    title: it.conversation_title || it.title || '',
+    snippet: it.snippet || it.reason || '',
+    attribution: it.attribution || (it.conversation_context_type === 'general_memory' ? 'Memory' : 'Past chat'),
+    url: typeof it.url === 'string' && it.url.startsWith('/') ? 'https://chatgpt.com' + it.url : null,
+    date: Number.isFinite(it.pub_date) ? it.pub_date * 1000 : null,
+  }));
+  const memoryCount =
+    memorySources.length ||
+    (finalMeta.content_references || []).filter(
+      (r) => r?.type === 'hidden' && /memcite/.test(r.matched_text || '')
+    ).length;
 
   // 情報源。本家の並びに合わせ、sources_footnote → 回答の検索結果 → 思考中の検索結果。
   // URL で重複を除き、後から来た同一 URL は欠けている項目（snippet 等）だけを埋める。
@@ -214,6 +226,7 @@ function finishReasoning(p, finalMeta) {
     activity: p.activity,
     sources,
     memoryCount,
+    memorySources,
   };
 }
 
@@ -228,7 +241,16 @@ function mergeReasoning(a, b) {
   a.activity.push(...b.activity);
   const seen = new Set(a.sources.map((s) => canonicalUrl(s.url)));
   for (const s of b.sources) if (!seen.has(canonicalUrl(s.url))) a.sources.push(s);
-  a.memoryCount = (a.memoryCount || 0) + (b.memoryCount || 0);
+  // メモリの参照先は citation_uuid（無ければタイトル+抜粋）で重複を除いて併合する
+  const memSeen = new Set((a.memorySources || []).map((m) => m.uuid || m.title + '\n' + m.snippet));
+  a.memorySources = a.memorySources || [];
+  for (const m of b.memorySources || []) {
+    const key = m.uuid || m.title + '\n' + m.snippet;
+    if (memSeen.has(key)) continue;
+    memSeen.add(key);
+    a.memorySources.push(m);
+  }
+  a.memoryCount = a.memorySources.length || (a.memoryCount || 0) + (b.memoryCount || 0);
   return a;
 }
 
@@ -256,7 +278,7 @@ function activePath(mapping, currentNode) {
 }
 
 /** 会話ツリーの表示対象メッセージを、画面に出す turns へ変換する。 */
-function buildTurns(mapping, currentNode) {
+function buildTurns(mapping, currentNode, ctxSources) {
   const turns = [];
   /** 次に出る回答本文へ付ける思考アクティビティ */
   let pending = newReasoning();
@@ -376,7 +398,7 @@ function buildTurns(mapping, currentNode) {
     const collect = { navLists: [], citeLists: [] };
     const text = applyContentReferences(partsToText(content).text, meta.content_references, collect);
     if (!text.trim()) continue;
-    const reasoning = finishReasoning(pending, meta);
+    const reasoning = finishReasoning(pending, meta, ctxSources?.get(msg.id));
     pending = newReasoning();
 
     const prev = turns[turns.length - 1];
@@ -793,7 +815,15 @@ export async function loadNativeConversation(abs, mdConv) {
   const resp = (raw.responses || []).map((r) => r?.response).find((r) => r?.mapping);
   if (!resp) return null;
 
-  const turns = buildTurns(resp.mapping, resp.current_node);
+  // メモリ引用の参照先（conversation_context_sources の応答）。message_id → items
+  const ctxSources = new Map();
+  for (const r of raw.responses || []) {
+    if (!/conversation_context_sources/.test(r?.endpoint || '')) continue;
+    const items = r?.response?.items || [];
+    if (r?.message_id && items.length) ctxSources.set(r.message_id, items);
+  }
+
+  const turns = buildTurns(resp.mapping, resp.current_node, ctxSources);
   if (!turns.length) return null;
   attachImagesFromMarkdown(turns, mdConv?.turns);
   return { turns: turns.map(({ imageCount, ...turn }) => turn) };

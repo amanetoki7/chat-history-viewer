@@ -1026,8 +1026,8 @@ button.activity-chip { border: none; font-family: inherit; cursor: pointer; }
   font-size: 12px; line-height: 1.55; color: var(--text-faint);
 }
 
-/* メモリ（Past chat）の行。リンクではないのでホバーで反応しない */
-.activity-memory:hover { background: transparent; }
+/* メモリの行。リンクの無い行（保存メモリ・汎用行）だけホバーで反応しない */
+div.activity-memory:hover { background: transparent; }
 .activity-memory .activity-source-site .ti { color: var(--text-faint); }
 
 /* ------------------------------------------- 引用チップのホバーカード */
