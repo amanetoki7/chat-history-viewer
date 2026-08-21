@@ -232,7 +232,7 @@ const shortDomain = (d) => (d || '').replace(/^www\./, '').replace(/\.(?:com|net
 /** ステップ配下に最初から見せる結果行の数。残りは「+さらに N」で開く */
 const PPLX_RESULT_VISIBLE = 3;
 
-const PPLX_STEP_ICON = { search: 'world-search', read: 'world', code: 'terminal-2', plain: 'list-search' };
+const PPLX_STEP_ICON = { search: 'world-search', memory: 'clock-search', read: 'world', code: 'terminal-2', plain: 'list-search' };
 
 /** ステップ 1 件。見出し（アイコン + タイトル）と、検索語・結果・コードのネスト。 */
 function pplxStepHtml(step) {

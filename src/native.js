@@ -518,12 +518,48 @@ const STEP_RESULT_MAX = 24;
  * 返り値はステップ配列。併せて添付ファイル（ATTACHMENT）を attachments に集める。
  *   step: { kind: 'search'|'plain'|'thought'|'read'|'code', title, queries, results, code?, output? }
  */
+/**
+ * workflow_root（2026-08-22 以降の COPILOT 応答）の手順。ステップに title と
+ * tool_name（search_web / memory_search …）が付き、items に検索語（QUERIES）・
+ * 結果（SOURCES）・回答本文（TEXT）が入る。本文だけのステップは連鎖に出さない。
+ */
+function pplxWorkflowSteps(workflow) {
+  const steps = [];
+  for (const s of workflow.steps || []) {
+    const title = (s.title || '').trim();
+    const step = {
+      kind: s.tool_name === 'memory_search' ? 'memory' : 'search',
+      title,
+      queries: [],
+      results: [],
+    };
+    for (const it of s.items || []) {
+      if (it?.type === 'WORKFLOW_ITEM_QUERIES') {
+        step.queries.push(...(it.payload?.queries_payload?.queries || []).filter(Boolean));
+      } else if (it?.type === 'WORKFLOW_ITEM_SOURCES') {
+        for (const w of it.payload?.sources_payload?.sources || []) {
+          if (!w?.url || step.results.length >= STEP_RESULT_MAX) continue;
+          if (!step.results.some((r) => r.url === w.url)) step.results.push(pplxStepResult(w));
+        }
+      }
+    }
+    if (title || step.queries.length || step.results.length) steps.push(step);
+  }
+  return steps;
+}
+
 function pplxSteps(entry, blocks, answer, cited) {
   const attachments = [];
-  const steps = [];
+  let steps = [];
   const byGoal = new Map(); // goal id → step（見出し行）
 
-  for (const g of blocks.get('plan')?.plan_block?.goals || []) {
+  // 新形式（workflow_root）があればそれを使い、旧形式（plan + pro_search_steps）の
+  // 組み立てはスキップする。引用のフォールバックは両形式で共通
+  const workflow = blocks.get('workflow_root')?.workflow_block;
+  const useWorkflow = Boolean(workflow?.steps?.length);
+  if (useWorkflow) steps = pplxWorkflowSteps(workflow);
+
+  for (const g of (useWorkflow ? [] : blocks.get('plan')?.plan_block?.goals) || []) {
     const title = (g?.description || '').trim();
     if (!title || title === answer || title.includes('\n') || title.length > 120) continue;
     const step = { kind: title === 'ウェブを検索する' ? 'search' : 'plain', title, queries: [], results: [] };
@@ -551,7 +587,7 @@ function pplxSteps(entry, blocks, answer, cited) {
 
   let initialQuery = '';
   let lastSearch = null; // 直後の SEARCH_RESULTS を受けるステップ
-  for (const s of blocks.get('pro_search_steps')?.plan_block?.steps || []) {
+  for (const s of (useWorkflow ? [] : blocks.get('pro_search_steps')?.plan_block?.steps) || []) {
     if (s.step_type === 'INITIAL_QUERY') {
       initialQuery = (s.initial_query_content?.query || '').trim();
       continue;
@@ -633,7 +669,16 @@ function pplxBlocks(entry) {
 function pplxEntryTurns(entry, turns) {
   const blocks = pplxBlocks(entry);
   const mdBlock = blocks.get('ask_text')?.markdown_block;
-  const answer = (mdBlock?.answer || (mdBlock?.chunks || []).join('')).trim();
+  let answer = (mdBlock?.answer || (mdBlock?.chunks || []).join('')).trim();
+  if (!answer) {
+    // 新形式（workflow_root）では本文が WORKFLOW_ITEM_TEXT に入る
+    answer = (blocks.get('workflow_root')?.workflow_block?.steps || [])
+      .flatMap((s) => s.items || [])
+      .filter((it) => it?.type === 'WORKFLOW_ITEM_TEXT')
+      .map((it) => it.payload?.text_payload?.text || '')
+      .join('\n\n')
+      .trim();
+  }
   const query = (entry.query_str || '').trim();
   if (!query && !answer) return;
 
