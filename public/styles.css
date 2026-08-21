@@ -5,6 +5,22 @@
 
 /* ---------------------------------------------------------------- tokens */
 
+*{
+  /* box-sizing:border-box; */
+  margin:0;
+  padding:0;
+  /* 余計なユーザー操作の干渉を避ける */
+  touch-action: pan-y;
+  /* 選択の無効 */
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+ /* メニューを隠す */
+  -webkit-touch-callout:none;
+  -webkit-user-drag:none;
+}
+img { pointer-events: none; }
+
 :root {
   --bg: #0e1014;
   --bg-elev: #161920;
