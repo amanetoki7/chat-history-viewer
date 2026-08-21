@@ -1,8 +1,10 @@
 /**
  * .md と同名の .raw.json（エクスポータが保存したサービス生 API 応答）から会話を組み立てる。
  *
- * 現状は ChatGPT の conversation ツリー（mapping）のみ対応。
- * current_node から parent を遡り、本家 UI に表示されている枝を線形化して描画に使う。
+ * 対応サービス:
+ *   - ChatGPT: conversation ツリー（mapping）。current_node から parent を遡り、
+ *     本家 UI に表示されている枝を線形化して描画に使う。
+ *   - Perplexity: thread エンドポイントの entries（1 件 = 質問と回答の 1 往復）。
  * 読めない・解釈できない場合は null を返し、呼び出し側は従来どおり .md の解析結果を使う。
  */
 
@@ -438,8 +440,289 @@ function attachImagesFromMarkdown(turns, mdTurns) {
   });
 }
 
+/* ------------------------------------------------------------ Perplexity */
+
+/** ISO 8601 の日時文字列を .md の `message time:` と同じ表記に揃える。
+    Perplexity はタイムゾーン表記の無い UTC を返すことがあるため補う。 */
+function fmtIsoTime(s) {
+  if (typeof s !== 'string' || !s) return null;
+  const ms = Date.parse(/(?:Z|[+-]\d{2}:?\d{2})$/.test(s) ? s : s + 'Z');
+  return Number.isFinite(ms) ? fmtTime(ms / 1000) : null;
+}
+
+/** 過去のチャット・会話履歴由来の検索結果（情報源には出さず、メモリとして数える） */
+const isMemoryResult = (w) => Boolean(w?.is_memory || w?.is_conversation_history || w?.is_conversation_summary);
+
+/** Perplexity の検索結果 1 件を、情報源・引用ホバーカードの 1 ページぶんに整形する。 */
+function pplxSource(w) {
+  const ts = w.timestamp || w.meta_data?.published_date || '';
+  const ms = ts ? Date.parse(/(?:Z|[+-]\d{2}:?\d{2})$/.test(ts) ? ts : ts + 'Z') : NaN;
+  return {
+    title: w.name || '',
+    url: w.url,
+    snippet: w.snippet || '',
+    date: Number.isFinite(ms) ? ms : null,
+    attribution: (w.meta_data?.domain_name || urlHost(w.url)).replace(/^www\./, ''),
+  };
+}
+
 /**
- * .md の絶対パスに対応する .raw.json があれば、会話ツリーから turns を組み立てて返す。
+ * 本文中の引用マーカー（[1][2] のような 1 始まりの番号。web_results ブロックの並びを指す）を
+ * 引用チップ（`[ラベル](#cite-N)`）へ置き換える。連続する番号は 1 つのチップ
+ * （「tenki.jp +1」）に束ね、ホバーカードでページ送りできるようにする。
+ * コードフェンス内は配列添字などと紛らわしいため置換しない。
+ */
+function linkPplxCitations(text, results, collect) {
+  if (!results.length) return text;
+  let inFence = false;
+  const lines = (text || '').split('\n').map((line) => {
+    if (/^\s*(?:```|~~~)/.test(line)) {
+      inFence = !inFence;
+      return line;
+    }
+    if (inFence) return line;
+    // 直後に ( が続くものは通常の Markdown リンクなので除く
+    return line.replace(/(?:\[\d{1,3}\])+(?!\()/g, (run) => {
+      const nums = [...run.matchAll(/\d{1,3}/g)].map(Number);
+      const pages = nums.filter((n) => n >= 1 && n <= results.length).map((n) => pplxSource(results[n - 1]));
+      if (!pages.length) return run;
+      const label = (pages[0].attribution || urlHost(pages[0].url)).replace(/[[\]]/g, ' ').trim() || '出典';
+      return `[${label}](#cite-${collect.citeLists.push(pages) - 1})`;
+    });
+  });
+  return lines.join('\n');
+}
+
+/** 検索結果 1 件を、ステップ配下の結果行（favicon + タイトル + ドメイン + 信頼バッジ）に整形する。 */
+function pplxStepResult(w) {
+  return {
+    title: w.name || '',
+    url: w.url,
+    domain: (w.meta_data?.domain_name || urlHost(w.url)).replace(/^www\./, ''),
+    trusted: Boolean(w.trust),
+  };
+}
+
+/** 1 ステップに保持する結果行の上限（本家は畳んで見せるが、保存量もここで抑える） */
+const STEP_RESULT_MAX = 24;
+
+/**
+ * plan（goals）と pro_search_steps を、本家の手順表示（「N ステップ完了」の連鎖）へ変換する。
+ *
+ * goals はステップの見出し（「ウェブを検索する」「◯◯について整理中」…）。最後の goal には
+ * 回答本文がそのまま流れ込むため、改行を含む・長すぎるものは見出しから除外する。
+ * pro_search_steps の詳細（SEARCH_WEB の検索語、SEARCH_RESULTS の結果、THOUGHT…）は
+ * goal_id で見出しに紐付くが、エクスポートに INITIAL_QUERY しか残っていないスレッドも多い。
+ * その場合は引用（web_results ブロック）を最後のステップの結果として見せる。
+ *
+ * 返り値はステップ配列。併せて添付ファイル（ATTACHMENT）を attachments に集める。
+ *   step: { kind: 'search'|'plain'|'thought'|'read'|'code', title, queries, results, code?, output? }
+ */
+function pplxSteps(entry, blocks, answer, cited) {
+  const attachments = [];
+  const steps = [];
+  const byGoal = new Map(); // goal id → step（見出し行）
+
+  for (const g of blocks.get('plan')?.plan_block?.goals || []) {
+    const title = (g?.description || '').trim();
+    if (!title || title === answer || title.includes('\n') || title.length > 120) continue;
+    const step = { kind: title === 'ウェブを検索する' ? 'search' : 'plain', title, queries: [], results: [] };
+    byGoal.set(String(g.id ?? ''), step);
+    steps.push(step);
+  }
+
+  /** goal_id に対応する見出しステップ。無ければ新しいステップを末尾に作る。 */
+  const stepFor = (goalId, kind, title) => {
+    const found = byGoal.get(String(goalId ?? ''));
+    if (found) {
+      if (found.kind === 'plain') found.kind = kind;
+      return found;
+    }
+    const step = { kind, title, queries: [], results: [] };
+    steps.push(step);
+    return step;
+  };
+  const addResults = (step, list) => {
+    for (const w of list) {
+      if (step.results.length >= STEP_RESULT_MAX) break;
+      if (!step.results.some((r) => r.url === w.url)) step.results.push(pplxStepResult(w));
+    }
+  };
+
+  let initialQuery = '';
+  let lastSearch = null; // 直後の SEARCH_RESULTS を受けるステップ
+  for (const s of blocks.get('pro_search_steps')?.plan_block?.steps || []) {
+    if (s.step_type === 'INITIAL_QUERY') {
+      initialQuery = (s.initial_query_content?.query || '').trim();
+      continue;
+    }
+    if (s.step_type === 'SEARCH_WEB') {
+      lastSearch = stepFor(s.search_web_content?.goal_id, 'search', 'ウェブを検索する');
+      lastSearch.queries.push(...(s.search_web_content?.queries || []).map((q) => q?.query).filter(Boolean));
+      continue;
+    }
+    if (s.step_type === 'SEARCH_RESULTS') {
+      const results = (s.web_results_content?.web_results || []).filter((w) => w?.url && !isMemoryResult(w));
+      const step = lastSearch || stepFor(s.web_results_content?.goal_id, 'search', 'ウェブを検索する');
+      addResults(step, results);
+      lastSearch = null;
+      continue;
+    }
+    if (s.step_type === 'THOUGHT') {
+      const text = (s.thought_content?.thought || '').trim();
+      if (!text) continue;
+      const step = { kind: 'thought', title: text, queries: [], results: [] };
+      addResults(step, (s.thought_content?.web_results || []).filter((w) => w?.url && !isMemoryResult(w)));
+      steps.push(step);
+      continue;
+    }
+    if (s.step_type === 'GET_URL_CONTENT') {
+      const pages = (s.get_url_content_content?.pages || []).filter((pg) => pg?.url);
+      if (pages.length) {
+        const step = stepFor(s.get_url_content_content?.goal_id, 'read', 'ウェブページを読む');
+        addResults(step, pages.map((pg) => ({ url: pg.url })));
+      }
+      continue;
+    }
+    if (s.step_type === 'CODE') {
+      const c = s.code_content || {};
+      const code = (c.script || '').trim();
+      if (code) {
+        const output = (c.stdout || c.output || c.error || '').trim();
+        const step = stepFor(c.goal_id, 'code', 'コードを実行');
+        step.code = code.slice(0, 20000);
+        step.output = output ? output.slice(0, 10000) : null;
+      }
+      continue;
+    }
+    if (s.step_type === 'ATTACHMENT') {
+      for (const a of s.attachment_content?.attachments || []) {
+        if (a?.url) attachments.push({ name: a.name || 'attachment', url: a.url });
+      }
+    }
+  }
+
+  // 本家は「ウェブを検索する」の下に最初の検索語（= 質問文）を出す
+  const firstSearch = steps.find((s) => s.title === 'ウェブを検索する');
+  if (firstSearch && !firstSearch.queries.length && initialQuery) firstSearch.queries.push(initialQuery);
+
+  // 手順の詳細が残っていないスレッドでは、引用を最後のステップの結果として見せる
+  if (cited.length && !steps.some((s) => s.results.length)) {
+    let last = steps.findLast((s) => s.kind === 'search' || s.kind === 'plain');
+    if (!last) {
+      last = { kind: 'search', title: 'ウェブを検索する', queries: initialQuery ? [initialQuery] : [], results: [] };
+      steps.push(last);
+    }
+    if (last.kind === 'plain') last.kind = 'search';
+    addResults(last, cited);
+  }
+
+  return { steps, attachments };
+}
+
+/** entries の blocks から intended_usage → ブロックの索引を作る。 */
+function pplxBlocks(entry) {
+  const map = new Map();
+  for (const b of entry.blocks || []) {
+    if (b?.intended_usage && !map.has(b.intended_usage)) map.set(b.intended_usage, b);
+  }
+  return map;
+}
+
+/** Perplexity の 1 エントリ（質問 + 回答）を user / assistant の 2 ターンへ変換する。 */
+function pplxEntryTurns(entry, turns) {
+  const blocks = pplxBlocks(entry);
+  const mdBlock = blocks.get('ask_text')?.markdown_block;
+  const answer = (mdBlock?.answer || (mdBlock?.chunks || []).join('')).trim();
+  const query = (entry.query_str || '').trim();
+  if (!query && !answer) return;
+
+  // 手順の連鎖と情報源。情報源は引用（web_results）→ ソースタブ（sources_answer_mode）の順
+  const cited = (blocks.get('web_results')?.web_result_block?.web_results || []).filter((w) => w?.url);
+  const { steps, attachments } = pplxSteps(entry, blocks, answer, cited.filter((w) => !isMemoryResult(w)));
+  let memoryCount = 0;
+  const seen = new Set();
+  const sources = [];
+  for (const list of [cited, blocks.get('sources_answer_mode')?.sources_mode_block?.web_results || []]) {
+    for (const w of list) {
+      if (!w?.url) continue;
+      if (isMemoryResult(w)) {
+        memoryCount++;
+        continue;
+      }
+      const key = canonicalUrl(w.url);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      sources.push(pplxSource(w));
+    }
+  }
+  // steps がフロントの Perplexity 専用描画（手順の連鎖）を選ぶ目印。
+  // toolRows / activity は ChatGPT（Native）と共通のコードが触るため空配列を置く
+  const reasoning =
+    steps.length || sources.length || memoryCount
+      ? { preamble: null, recap: null, durationSec: null, toolRows: [], activity: [], steps, sources, memoryCount }
+      : null;
+
+  if (query || attachments.length) {
+    // 添付ファイルの URL は期限付き署名のため、リンクとして残すだけにする
+    const head = attachments.map((a) => `[${a.name.replace(/[[\]]/g, ' ')}](${a.url})`).join(' · ');
+    turns.push({
+      role: 'user',
+      model: null,
+      time: fmtIsoTime(entry.entry_created_datetime),
+      text: [head, query].filter(Boolean).join('\n\n'),
+    });
+  }
+  if (!answer) return;
+
+  const collect = { citeLists: [], navLists: [] };
+  let text = linkPplxCitations(answer, cited.filter((w) => !isMemoryResult(w)), collect);
+
+  // メディア（画像・動画）は記事カード（nav_list と同じ描画）として回答末尾に出す
+  const media = (blocks.get('media_items')?.media_block?.media_items || [])
+    .filter((it) => it?.url && (it.thumbnail || it.image))
+    .map((it) => ({
+      title: it.name || '',
+      url: it.url,
+      thumbnail: it.thumbnail_384 || it.thumbnail || it.image || null,
+      date: null,
+      attribution: (urlHost(it.url) || it.citation_info?.domain_name || '').replace(/^www\./, ''),
+    }));
+  if (media.length) text += `\n\n<antNavList index="${collect.navLists.push(media) - 1}"></antNavList>`;
+
+  turns.push({
+    role: 'assistant',
+    model: entry.display_model || null,
+    time: fmtIsoTime(entry.entry_updated_datetime) || fmtIsoTime(entry.updated_datetime),
+    text,
+    reasoning,
+    navLists: collect.navLists.length ? collect.navLists : null,
+    citeLists: collect.citeLists.length ? collect.citeLists : null,
+    related: (entry.related_queries || []).length ? entry.related_queries.map((q) => `- ${q}`).join('\n') : null,
+  });
+}
+
+/** Perplexity の thread 応答（responses[].response.entries）から turns を組み立てる。 */
+function buildPplxTurns(raw) {
+  const turns = [];
+  const seen = new Set();
+  for (const r of raw.responses || []) {
+    for (const entry of r?.response?.entries || []) {
+      const id = entry?.uuid || entry?.backend_uuid;
+      if (id) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+      }
+      pplxEntryTurns(entry, turns);
+    }
+  }
+  return turns;
+}
+
+/* ---------------------------------------------------------------- loader */
+
+/**
+ * .md の絶対パスに対応する .raw.json があれば、生 API 応答から turns を組み立てて返す。
  * @param {string} abs        .md の絶対パス
  * @param {object|null} mdConv .md の解析結果（添付画像の流用に使う）
  * @returns {Promise<{turns: any[]} | null>}
@@ -452,6 +735,12 @@ export async function loadNativeConversation(abs, mdConv) {
   } catch {
     return null; // 無い・読めない・JSON でない
   }
+
+  if (raw?.service === 'perplexity') {
+    const turns = buildPplxTurns(raw);
+    return turns.length ? { turns } : null;
+  }
+
   if (raw?.service !== 'chatgpt') return null;
   const resp = (raw.responses || []).map((r) => r?.response).find((r) => r?.mapping);
   if (!resp) return null;

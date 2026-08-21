@@ -224,6 +224,78 @@ function sourcesButtonHtml(turn) {
   );
 }
 
+/* ------------------------------------- Perplexity（Native）の手順の連鎖 */
+
+/** 結果行のドメイン表示。本家に合わせ www と末尾の公開サフィックスを落とす（表示のみ）。 */
+const shortDomain = (d) => (d || '').replace(/^www\./, '').replace(/\.(?:com|net|org|co\.jp|or\.jp|ne\.jp|jp|io|ai|app|dev)$/, '');
+
+/** ステップ配下に最初から見せる結果行の数。残りは「+さらに N」で開く */
+const PPLX_RESULT_VISIBLE = 3;
+
+const PPLX_STEP_ICON = { search: 'world-search', read: 'world', code: 'terminal-2', plain: 'list-search' };
+
+/** ステップ 1 件。見出し（アイコン + タイトル）と、検索語・結果・コードのネスト。 */
+function pplxStepHtml(step) {
+  const head =
+    (step.kind === 'thought' ? '<span class="pplx-dot"></span>' : icon(PPLX_STEP_ICON[step.kind] || 'list-search', 15)) +
+    `<span class="pplx-step-title">${escapeHtml(step.title)}</span>`;
+
+  const queries = (step.queries || [])
+    .map((q) => `<div class="pplx-query">${icon('search', 13)}<span>${escapeHtml(q)}</span></div>`)
+    .join('');
+
+  const results = (step.results || [])
+    .map(
+      (r, i) =>
+        `<a class="pplx-result${i >= PPLX_RESULT_VISIBLE ? ' pplx-rest' : ''}" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">` +
+        `${favIcoHtml(r.domain && r.domain.includes('.') ? r.domain : '')}` +
+        `<span class="pplx-result-title">${escapeHtml(r.title || r.url)}</span>` +
+        `<span class="pplx-result-domain">${escapeHtml(shortDomain(r.domain))}</span>` +
+        `${r.trusted ? icon('discount-check', 14) : ''}</a>`
+    )
+    .join('');
+  const rest = (step.results || []).length - PPLX_RESULT_VISIBLE;
+  const more =
+    rest > 0
+      ? `<button type="button" class="pplx-more">+さらに${fmtInt(rest)}</button>` +
+        `<button type="button" class="pplx-less">表示を減らす</button>`
+      : '';
+
+  let code = '';
+  if (step.code) {
+    const fence = fenceFor(step.code);
+    let bodyMd = fence + '\n' + step.code + '\n' + fence;
+    if (step.output) {
+      const outFence = fenceFor(step.output);
+      bodyMd += '\n\n' + outFence + '\n' + step.output + '\n' + outFence;
+    }
+    code = `<div class="pplx-code md">${md.render(bodyMd)}</div>`;
+  }
+
+  const body = queries + results + more + code;
+  if (!body) return `<div class="pplx-step"><div class="pplx-step-head">${head}</div></div>`;
+  return (
+    `<details class="pplx-step" open><summary class="pplx-step-head">${head}${icon('chevron-down', 13)}</summary>` +
+    `<div class="pplx-step-body">${body}</div></details>`
+  );
+}
+
+/**
+ * Perplexity（Native）の手順の連鎖（本家の Pro 検索ステップ表示に相当）。
+ * 1 ステップならそのまま、複数なら「N ステップ完了」の折りたたみで束ねる。
+ */
+function pplxStepsHtml(turn) {
+  const steps = turn.reasoning?.steps || [];
+  if (!steps.length) return '';
+  const body = steps.map((s) => pplxStepHtml(s)).join('');
+  if (steps.length === 1) return `<div class="pplx-steps">${body}</div>`;
+  return (
+    `<div class="pplx-steps"><details class="pplx-wrap" open>` +
+    `<summary>${escapeHtml(`${steps.length} ステップ完了`)}${icon('chevron-down', 13)}</summary>` +
+    `<div class="pplx-chain">${body}</div></details></div>`
+  );
+}
+
 /** ChatGPT（Native）の記事カード（nav_list）。画像・出典元・タイトル・日付の横並びカード。 */
 function navCardsHtml(items) {
   if (!items?.length) return '';
@@ -1623,8 +1695,13 @@ function renderTurnHtml(turn, conv) {
       bodyText = rest;
     }
   }
-  // Native 描画の思考アクティビティ（「◯m ◯s考えました」）は本文の上に置く
-  const reasoningHtml = turn.role === 'assistant' && turn.reasoning ? reasoningBlock(turn) : '';
+  // Native 描画の思考は本文の上に置く。Perplexity は手順の連鎖、ChatGPT は「◯m ◯s考えました」
+  const reasoningHtml =
+    turn.role === 'assistant' && turn.reasoning
+      ? turn.reasoning.steps
+        ? pplxStepsHtml(turn)
+        : reasoningBlock(turn)
+      : '';
   const bubbleHtml =
     bodyText.trim() || extras || reasoningHtml
       ? `<div class="bubble md">${reasoningHtml}${renderRich(bodyText, turn, conv)}${extras}</div>`
@@ -1903,6 +1980,12 @@ el.conversation.addEventListener('click', (ev) => {
   if (web) {
     const turn = activeConv.turns[Number(web.dataset.turn)];
     if (turn?.reasoning) openActivity(turn.reasoning);
+    return;
+  }
+  // Perplexity の手順：結果行の「+さらに N」⇔「表示を減らす」
+  const moreBtn = ev.target.closest('.pplx-more, .pplx-less');
+  if (moreBtn) {
+    moreBtn.closest('.pplx-step-body').classList.toggle('expanded', moreBtn.classList.contains('pplx-more'));
   }
 });
 
@@ -2452,10 +2535,11 @@ function activityHtml(r) {
   for (const item of r.activity) {
     if (item.kind === 'search') {
       const chip = (d, cls = '') => `<span class="activity-chip${cls}">${favIcoHtml(d)}<span>${escapeHtml(d)}</span></span>`;
-      // 検索語（search("…") 由来）は虫眼鏡アイコン（右端）付きのチップで先頭に出す
-      let chips = item.query
-        ? `<span class="activity-chip activity-query"><span>${escapeHtml(item.query)}</span>${icon('search', 13)}</span>`
-        : '';
+      // 検索語（ChatGPT の search("…") / Perplexity の queries）は虫眼鏡アイコン（右端）付きのチップで先頭に出す
+      const queries = item.queries || (item.query ? [item.query] : []);
+      let chips = queries
+        .map((q) => `<span class="activity-chip activity-query"><span>${escapeHtml(q)}</span>${icon('search', 13)}</span>`)
+        .join('');
       chips += item.domains.slice(0, ACTIVITY_CHIP_MAX).map((d) => chip(d)).join('');
       const rest = item.domains.slice(ACTIVITY_CHIP_MAX);
       if (rest.length) {

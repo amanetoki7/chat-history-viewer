@@ -130,11 +130,11 @@ app.get('/api/conversation', async (req, res) => {
       model: turn.model,
       time: turn.time,
       chars: turn.text.length,
-      // Native 描画（ChatGPT）の思考アクティビティ（「◯m ◯s考えました」ブロック）
+      // Native 描画の思考アクティビティ（ChatGPT の「◯m ◯s考えました」、Perplexity の検索手順）
       reasoning: turn.reasoning || null,
-      // Native 描画（ChatGPT）の記事カード（nav_list。本文の <antNavList> が参照する）
+      // Native 描画の記事カード（ChatGPT の nav_list、Perplexity のメディア。本文の <antNavList> が参照する）
       navLists: turn.navLists || null,
-      // Native 描画（ChatGPT）の引用チップ（grouped_webpages。本文の #cite- リンクが参照する）
+      // Native 描画の引用チップ（ChatGPT の grouped_webpages、Perplexity の [1]。本文の #cite- リンクが参照する）
       citeLists: turn.citeLists || null,
     };
     // Sources / Related Questions の見出し分割は .md（Perplexity Threads）由来の構造にだけ適用する
@@ -142,7 +142,8 @@ app.get('/api/conversation', async (req, res) => {
       const { body, sources, related } = splitThreadSections(turn.text);
       return { ...base, text: body, sources, related };
     }
-    return { ...base, text: turn.text, sources: null, related: null };
+    // Native 描画（Perplexity）の関連する質問
+    return { ...base, text: turn.text, sources: null, related: turn.related || null };
   });
 
   // ターン範囲の指定。tail=N は末尾 N 件、turnFrom / turnTo（末尾は省略可、to は含まない）は

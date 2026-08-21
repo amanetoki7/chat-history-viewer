@@ -54,3 +54,106 @@ html[data-theme="dark"] .conversation[data-source="perplexity"] {
 .conversation[data-source="perplexity"] details.block {
   border-color: color-mix(in srgb, var(--block-summary-color) 40%, transparent);
 }
+
+/* ------------------------------------------------- 手順の連鎖（Native） */
+/* 本家の Pro 検索ステップ表示。回答の上に、goal 見出し・検索語・結果・思考を
+   縦の連鎖として出す。マークアップは app.js の pplxStepsHtml を参照 */
+
+.pplx-steps {
+  margin: .2em 0 1.4em;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.pplx-steps summary { list-style: none; cursor: pointer; }
+.pplx-steps summary::-webkit-details-marker { display: none; }
+.pplx-steps summary .ti { flex: none; }
+
+/* 「N ステップ完了」（複数ステップの束ね） */
+.pplx-wrap > summary {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-bottom: 8px;
+  font-weight: 550;
+  color: var(--text-dim);
+}
+.pplx-wrap > summary:hover { color: var(--text); }
+.pplx-wrap > summary > .ti:last-child { transition: transform .15s; }
+.pplx-wrap[open] > summary > .ti:last-child { transform: rotate(180deg); }
+
+/* ステップの見出し行（アイコン + タイトル + 開閉シェブロン） */
+.pplx-step-head {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 3px 0;
+  color: var(--text-dim);
+}
+.pplx-step-head > .ti { margin-top: 2px; }
+.pplx-step-head > .ti:last-child { margin-top: 5px; opacity: 0; transition: transform .15s, opacity .12s; }
+.pplx-step:hover .pplx-step-head > .ti:last-child { opacity: .7; }
+details.pplx-step[open] > summary > .ti:last-child { transform: rotate(180deg); }
+summary.pplx-step-head:hover { color: var(--text); }
+.pplx-step-title { min-width: 0; }
+
+/* 思考（THOUGHT）はアイコンの代わりに点 */
+.pplx-dot {
+  flex: none;
+  width: 7px; height: 7px;
+  margin: 7px 4px 0;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .55;
+}
+
+/* ステップ配下。アイコン列から縦線を落として連鎖に見せる */
+.pplx-step-body {
+  margin: 2px 0 10px 7px;
+  padding: 2px 0 2px 19px;
+  border-left: 1.5px solid var(--border);
+}
+
+/* 検索語の行（虫眼鏡 + クエリ） */
+.pplx-query {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0;
+  color: var(--text-faint);
+}
+.pplx-query .ti { flex: none; }
+.pplx-query > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 結果の行（favicon + タイトル + ドメイン + 信頼バッジ） */
+.pplx-result {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0;
+  color: inherit; text-decoration: none;
+  min-width: 0;
+}
+.pplx-result:hover .pplx-result-title { color: var(--chat-link-color); }
+.pplx-result .fav-ico { flex: none; }
+.pplx-result-title {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-dim);
+}
+.pplx-result-domain {
+  flex: none;
+  max-width: 11em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+.pplx-result > .ti { flex: none; color: var(--text-faint); }
+
+/* 4 件目以降は「+さらに N」で開く */
+.pplx-step-body:not(.expanded) .pplx-result.pplx-rest,
+.pplx-step-body:not(.expanded) .pplx-less { display: none; }
+.pplx-step-body.expanded .pplx-more { display: none; }
+.pplx-more, .pplx-less {
+  display: block;
+  padding: 4px 0;
+  background: none; border: 0;
+  font: inherit; font-size: 13px;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.pplx-more:hover, .pplx-less:hover { color: var(--text); }
+
+/* コード実行のカードは少し詰める */
+.pplx-code { font-size: 13px; }
+.pplx-code .codeblock { margin: 6px 0; }
