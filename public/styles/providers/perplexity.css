@@ -21,10 +21,10 @@
   --bubble-tail-radius: 0;
   --bubble-padding: 0;
 
-  --user-align: stretch;
-  --user-bubble-bg: transparent;
+  --user-align: flex-end;
+  --user-bubble-bg: #f0efe9;
   --user-bubble-border: transparent;
-  --user-bubble-max-width: 100%;
+  --user-bubble-max-width: 78%;
 
   --chat-link-color: #20808d;
   --chat-quote-border: #20808d66;
@@ -37,23 +37,27 @@ html[data-theme="dark"] .conversation[data-source="perplexity"] {
   --chat-bg: #191a1a;
   --code-bg: #202222;
   --block-bg: #202222;
+  --user-bubble-bg: #202222;
   --chat-link-color: #4bb8c4;
   --block-summary-color: #4bb8c4;
 }
 
-/* 質問＝記事のタイトル */
-.conversation[data-source="perplexity"] .turn.user .turn-head { flex-direction: row; }
+/* 質問は右寄せのチャット風バブル（本家の会話表示に合わせる）。
+   回答側は記事のまま（--bubble-radius: 0）なので、ユーザー側だけ角と余白を戻す */
 .conversation[data-source="perplexity"] .turn.user .bubble {
-  font-size: 1.5em;
-  line-height: 1.45;
-  font-weight: 600;
-  color: var(--text);
+  border-radius: 18px;
+  border-bottom-right-radius: 18px;
+  padding: 10px 18px;
 }
 
 /* 出典・関連する質問は本文から浮かせる */
 .conversation[data-source="perplexity"] details.block {
   border-color: color-mix(in srgb, var(--block-summary-color) 40%, transparent);
 }
+
+/* 本文のリンク・引用チップにはファビコンを出さない（本家はドメイン名だけのチップ。
+   display:none なら lazy 画像の読み込み自体も起きない） */
+.conversation[data-source="perplexity"] .md .link-chip .chip-ico { display: none; }
 
 /* ------------------------------------------------- 手順の連鎖（Native） */
 /* 本家の Pro 検索ステップ表示。回答の上に、goal 見出し・検索語・結果・思考を

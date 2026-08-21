@@ -1073,6 +1073,25 @@ button.activity-chip { border: none; font-family: inherit; cursor: pointer; }
   font-size: 12px; line-height: 1.55; color: var(--text-faint);
 }
 
+/* 信頼済みソースの節（Perplexity の trust。カードの下に理由文を出す） */
+.cite-pop-trust {
+  margin-top: 8px;
+  padding: 2px 10px 4px;
+  border-top: 1px solid var(--border-soft);
+}
+.cite-pop-trust-head {
+  display: flex; align-items: center; gap: 6px;
+  padding-top: 6px;
+  font-size: 12px; font-weight: 600; color: var(--text-dim);
+}
+.cite-pop-trust-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px; line-height: 1.55; color: var(--text-faint);
+  overflow-wrap: anywhere;
+}
+.cite-pop-trust-note b { font-weight: 600; color: var(--text-dim); }
+
 /* ------------------------------------------- 添付画像フルサイズプレビュー */
 
 .imgview-modal { position: fixed; inset: 0; z-index: 70; }

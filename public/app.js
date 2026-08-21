@@ -69,9 +69,11 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
     try {
       origin = new URL(pages[0].url).origin;
     } catch {}
+    // 信頼済みソース（Perplexity の trust）はチェックマークを添える
+    const trust = pages[0].trusted ? `<span class="chip-trust">${icon('discount-check', 13)}</span>` : '';
     return (
       baseLinkOpen(tokens, idx, options, env, self) +
-      `${origin ? chipIcoHtml(origin) : ''}<span class="chip-label">`
+      `${origin ? chipIcoHtml(origin) : ''}${trust}<span class="chip-label">`
     );
   }
 
@@ -274,8 +276,9 @@ function pplxStepHtml(step) {
 
   const body = queries + results + more + code;
   if (!body) return `<div class="pplx-step"><div class="pplx-step-head">${head}</div></div>`;
+  // 既定は折りたたみ（本家の完了後表示と同じく、見出し行だけを出す）
   return (
-    `<details class="pplx-step" open><summary class="pplx-step-head">${head}${icon('chevron-down', 13)}</summary>` +
+    `<details class="pplx-step"><summary class="pplx-step-head">${head}${icon('chevron-down', 13)}</summary>` +
     `<div class="pplx-step-body">${body}</div></details>`
   );
 }
@@ -290,7 +293,7 @@ function pplxStepsHtml(turn) {
   const body = steps.map((s) => pplxStepHtml(s)).join('');
   if (steps.length === 1) return `<div class="pplx-steps">${body}</div>`;
   return (
-    `<div class="pplx-steps"><details class="pplx-wrap" open>` +
+    `<div class="pplx-steps"><details class="pplx-wrap">` +
     `<summary>${escapeHtml(`${steps.length} ステップ完了`)}${icon('chevron-down', 13)}</summary>` +
     `<div class="pplx-chain">${body}</div></details></div>`
   );
@@ -2723,12 +2726,19 @@ function renderCitePop() {
           <span class="cite-pop-count">${idx + 1}/${pages.length}</span>
         </div>`
       : '';
+  // 信頼済みソース（Perplexity の trust）。理由文があればドメインを頭に付けて出す
+  const trust = p.trusted
+    ? `<div class="cite-pop-trust">
+        <span class="cite-pop-trust-head">${icon('discount-check', 14)}<span>信頼済み</span></span>
+        ${p.trustNote ? `<span class="cite-pop-trust-note"><b>${escapeHtml(domain)}</b> ${escapeHtml(p.trustNote)}</span>` : ''}
+      </div>`
+    : '';
   citePop.innerHTML = `${nav}
     <a class="cite-pop-item" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">
       <span class="cite-pop-site">${favIcoHtml(domain)}<span>${escapeHtml(p.attribution || domain)}</span></span>
       ${p.title ? `<span class="cite-pop-title">${escapeHtml(p.title)}</span>` : ''}
       ${snippet ? `<span class="cite-pop-snippet">${escapeHtml(snippet)}</span>` : ''}
-    </a>`;
+    </a>${trust}`;
   // 今開いているページをチップのリンク先にする
   chip.href = p.url;
 }

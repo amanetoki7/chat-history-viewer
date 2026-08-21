@@ -264,6 +264,12 @@ html.show-search-detail .turn-actions .sources-btn.for-search { display: none; }
   font-size: .82em;
   color: var(--text-faint);
 }
+/* 信頼済みソースのチェックマーク（Perplexity の trust） */
+.md a.link-chip .chip-trust {
+  display: inline-flex; align-items: center;
+  flex: none;
+  color: var(--text-faint);
+}
 .md code {
   font-family: var(--code-font); font-size: .89em;
   background: var(--code-bg); border: 1px solid var(--border-soft);

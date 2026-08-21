@@ -463,6 +463,9 @@ function pplxSource(w) {
     snippet: w.snippet || '',
     date: Number.isFinite(ms) ? ms : null,
     attribution: (w.meta_data?.domain_name || urlHost(w.url)).replace(/^www\./, ''),
+    // 信頼済みソース（本家のチェックマークと「信頼済み」カード）。理由文があれば添える
+    trusted: Boolean(w.trust),
+    trustNote: w.trust?.description || '',
   };
 }
 
