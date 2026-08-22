@@ -189,11 +189,13 @@ app.get('/api/conversation', async (req, res) => {
  * 会話に含まれる添付画像（Markdown 画像）の src を先頭から返す。
  * 一覧の画像チップのホバープレビュー用。data URI をそのまま返すので
  * limit で枚数を絞る（total は全体の枚数）。
- * チップの枚数（索引の imageCount）と合わせ、ユーザー発言の画像だけを対象にする。
+ * チップの枚数（索引の imageCount / firstImageCount）と合わせ、ユーザー発言の
+ * 画像だけを対象にする。scope=first なら最初のユーザー発言だけ。
  */
 app.get('/api/images', async (req, res) => {
   const relPath = String(req.query.id || '');
   const limit = Math.min(Math.max(Number(req.query.limit) || 4, 1), 12);
+  const scope = req.query.scope === 'first' ? 'first' : 'all';
   const entry = index.entries.find((e) => e.relPath === relPath);
   const abs = resolveEntryPath(relPath);
   if (!entry || !abs) return res.status(404).json({ error: 'not found' });
@@ -213,6 +215,7 @@ app.get('/api/images', async (req, res) => {
       total++;
       if (images.length < limit) images.push(m[1]);
     }
+    if (scope === 'first') break; // 最初のユーザー発言だけ
   }
   res.json({ total, images });
 });

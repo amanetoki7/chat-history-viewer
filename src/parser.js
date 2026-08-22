@@ -331,12 +331,18 @@ export function parseChatFile(raw, ctx) {
   // 貼り付け画像の base64 は文字数に数えない（数百万文字規模の水増しになるため）
   let chars = 0;
   // 添付画像（Markdown の画像記法）の数。一覧のプレビューのチップに出す。
-  // AI の回答が例示などで含む画像は「添付」ではないので、ユーザー発言だけを数える
+  // AI の回答が例示などで含む画像は「添付」ではないので、ユーザー発言だけを数える。
+  // 数え方は設定で選べるため、全体と「最初のユーザー発言のみ」の両方を持つ
   let imageCount = 0;
+  let firstImageCount = 0;
   for (const t of turns) {
     const stripped = stripDataUriPayloads(t.text);
     chars += stripped.length;
-    if (t.role === 'user') imageCount += countMarkdownImages(stripped);
+    if (t.role === 'user') {
+      const n = countMarkdownImages(stripped);
+      imageCount += n;
+      if (t === firstUser) firstImageCount = n;
+    }
   }
 
   return {
@@ -358,6 +364,7 @@ export function parseChatFile(raw, ctx) {
     userTurns: turns.filter((t) => t.role === 'user').length,
     chars,
     imageCount,
+    firstImageCount,
     preview,
     turns,
   };

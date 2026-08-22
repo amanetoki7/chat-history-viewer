@@ -941,8 +941,10 @@ function itemHtml(item) {
 
 /** プレビュー先頭に置く添付画像チップ（画像アイコン + 枚数）。ホバーで画像をプレビューできる */
 function imageChipHtml(item) {
-  if (!item.imageCount) return '';
-  return `<span class="ri-img-chip" title="添付画像 ${fmtInt(item.imageCount)} 枚">${icon('photo', 11)}${fmtInt(item.imageCount)}</span>`;
+  const count = imageCountScope === 'first' ? item.firstImageCount : item.imageCount;
+  if (!count) return '';
+  const label = imageCountScope === 'first' ? '添付画像（最初の発言）' : '添付画像';
+  return `<span class="ri-img-chip" title="${label} ${fmtInt(count)} 枚">${icon('photo', 11)}${fmtInt(count)}</span>`;
 }
 
 /** li → 描画済み HTML（差分検出用の署名）。行を作り直さず変化だけを反映するために持つ */
@@ -1017,7 +1019,7 @@ el.list.addEventListener('scroll', () => {
 
 /* ------------------------- 一覧の画像チップ（ホバーで添付画像をプレビュー） */
 
-/** relPath → /api/images の取得 Promise。ホバーのたびに読み直さない */
+/** `scope:relPath` → /api/images の取得 Promise。ホバーのたびに読み直さない */
 const imagePopCache = new Map();
 /** プレビューに出す最大枚数（残りは「+n」で示す） */
 const IMAGE_POP_MAX = 4;
@@ -1041,15 +1043,16 @@ function hideImagePop() {
 }
 
 async function showImagePop(chip, relPath) {
-  let job = imagePopCache.get(relPath);
+  const cacheKey = `${imageCountScope}:${relPath}`;
+  let job = imagePopCache.get(cacheKey);
   if (!job) {
-    job = fetch(`/api/images?id=${encodeURIComponent(relPath)}&limit=${IMAGE_POP_MAX}`)
+    job = fetch(`/api/images?id=${encodeURIComponent(relPath)}&limit=${IMAGE_POP_MAX}&scope=${imageCountScope}`)
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null);
-    imagePopCache.set(relPath, job);
+    imagePopCache.set(cacheKey, job);
   }
   const data = await job;
-  if (!data) imagePopCache.delete(relPath); // 失敗は次のホバーで読み直す
+  if (!data) imagePopCache.delete(cacheKey); // 失敗は次のホバーで読み直す
   if (imagePopChip !== chip || !chip.isConnected) return; // ホバーが外れた・行が描き直された
   if (!data?.images?.length) return;
 
@@ -1275,6 +1278,19 @@ function setShowListPreview(on) {
   showListPreview = on;
   if (on) localStorage.setItem(SHOW_LIST_PREVIEW_KEY, '1');
   else localStorage.removeItem(SHOW_LIST_PREVIEW_KEY);
+}
+
+/**
+ * 添付画像チップの数え方。'all' はチャット全体（ユーザー発言のみ）、
+ * 'first' は最初の発言に添付したものだけ。ホバープレビューも同じ範囲になる。
+ */
+const IMAGE_COUNT_SCOPE_KEY = 'chv-image-count-scope';
+let imageCountScope = localStorage.getItem(IMAGE_COUNT_SCOPE_KEY) === 'first' ? 'first' : 'all';
+
+function setImageCountScope(value) {
+  imageCountScope = value;
+  if (value === 'first') localStorage.setItem(IMAGE_COUNT_SCOPE_KEY, 'first');
+  else localStorage.removeItem(IMAGE_COUNT_SCOPE_KEY);
 }
 
 // 「5分前」が古いままにならないよう毎分描き直す（表記が変わった行だけ書き換わる）
@@ -1517,6 +1533,11 @@ const TIME_BASIS_OPTIONS = [
   { value: 'start', label: 'チャットを開始した時刻' },
 ];
 
+const IMAGE_SCOPE_OPTIONS = [
+  { value: 'all', label: 'チャット全体' },
+  { value: 'first', label: '最初の発言のみ' },
+];
+
 /** 「一般」ペイン。テーマとチャットの日時の基準（プロバイダーに依らない設定）。 */
 function renderGeneralPane() {
   el.settingsPane.innerHTML = `
@@ -1546,6 +1567,11 @@ function renderGeneralPane() {
       ${switchHtml('list-preview-switch', '一覧にプレビューを表示', showListPreview)}
     </div>
     <p class="settings-note">一覧の各行に日付・発言数と本文のプレビューを表示します。全プロバイダー共通で、オフ（既定）ではタイトル中心のコンパクトな見た目になります。</p>
+    <div class="setting-row">
+      <label>画像の枚数</label>
+      ${selectMenuHtml('image-scope-select', '添付画像の数え方', IMAGE_SCOPE_OPTIONS, imageCountScope)}
+    </div>
+    <p class="settings-note">プレビューに出す添付画像チップの枚数の数え方。「最初の発言のみ」はチャット開始時に添付した画像だけを数えます。ホバーで出る画像も同じ範囲になります。</p>
     <div class="settings-section-label">同期</div>
     <div class="setting-row">
       <label>更新ドット</label>
@@ -1585,6 +1611,12 @@ function renderGeneralPane() {
   wireSwitch('list-preview-switch', (on) => {
     setShowListPreview(on);
     applyUiSettings();
+    renderGeneralPane();
+  });
+
+  wireSelectMenu('image-scope-select', (value) => {
+    setImageCountScope(value);
+    repaintItems(); // チップの枚数表記だけの変更なので読み込み直さない
     renderGeneralPane();
   });
 
