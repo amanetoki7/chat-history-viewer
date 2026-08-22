@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import { CHAT_ROOT, PORT, ROOT_DIR, SOURCE_META, SOURCE_ORDER } from './src/config.js';
 import { ensureIndex, index, loadConversation, onIndexChange, resolveEntryPath } from './src/indexer.js';
 import { search, parseQuery, buildSnippets } from './src/search.js';
-import { splitThreadSections } from './src/parser.js';
+import { splitThreadSections, MARKDOWN_IMAGE_RE } from './src/parser.js';
 import { loadNativeConversation } from './src/native.js';
 import { planQueries, retrieve, answerStream } from './src/ask.js';
 import { ensureEmbeddings, embeddingsStatus } from './src/embeddings.js';
@@ -183,6 +183,38 @@ app.get('/api/conversation', async (req, res) => {
     turnFrom: from,
     turns: turns.slice(from, to),
   });
+});
+
+/**
+ * 会話に含まれる添付画像（Markdown 画像）の src を先頭から返す。
+ * 一覧の画像チップのホバープレビュー用。data URI をそのまま返すので
+ * limit で枚数を絞る（total は全体の枚数）。
+ * チップの枚数（索引の imageCount）と合わせ、ユーザー発言の画像だけを対象にする。
+ */
+app.get('/api/images', async (req, res) => {
+  const relPath = String(req.query.id || '');
+  const limit = Math.min(Math.max(Number(req.query.limit) || 4, 1), 12);
+  const entry = index.entries.find((e) => e.relPath === relPath);
+  const abs = resolveEntryPath(relPath);
+  if (!entry || !abs) return res.status(404).json({ error: 'not found' });
+
+  const conv = await loadConversation({ abs, relPath, title: entry.title, mtimeMs: entry.mtimeMs, size: entry.size });
+  if (!conv) return res.status(500).json({ error: 'read failed' });
+  // 表示と同じターン（.raw.json があればそちら）から拾う
+  const native = await loadNativeConversation(abs, conv);
+  const turns = native ? native.turns : conv.turns;
+
+  const images = [];
+  let total = 0;
+  for (const turn of turns) {
+    if (turn.role !== 'user') continue;
+    MARKDOWN_IMAGE_RE.lastIndex = 0;
+    for (const m of turn.text.matchAll(MARKDOWN_IMAGE_RE)) {
+      total++;
+      if (images.length < limit) images.push(m[1]);
+    }
+  }
+  res.json({ total, images });
 });
 
 app.get('/api/raw', async (req, res) => {

@@ -553,6 +553,36 @@ body.results-resizing .results-resizer::after { background: var(--accent); }
   line-clamp: 2;
   overflow: hidden;
 }
+/* プレビュー先頭の添付画像チップ（画像アイコン + 枚数）。ホバーで #image-pop が出る */
+.ri-img-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 0 6px; margin-right: 6px;
+  border: 1px solid var(--border); border-radius: 999px;
+  font-size: 10.5px; line-height: 16px; color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  vertical-align: text-bottom; cursor: default;
+}
+.ri-img-chip:hover { background: var(--bg-elev-2); color: var(--text-dim); }
+.ri-img-chip .ti { flex: none; }
+
+/* 添付画像チップのホバープレビュー */
+#image-pop {
+  position: fixed; z-index: 70;
+  display: flex; align-items: center; gap: 6px;
+  max-width: calc(100vw - 24px);
+  padding: 6px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+#image-pop img {
+  height: 96px; max-width: 150px; min-width: 0;
+  object-fit: cover;
+  border-radius: 7px; background: var(--bg-elev-2);
+}
+.image-pop-more { flex: none; padding: 0 4px; font-size: 12px; color: var(--text-faint); }
+
 .ri-snippet {
   font-size: 12px; color: var(--text-dim);
   padding: 4px 0 4px 9px;

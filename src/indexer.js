@@ -23,7 +23,7 @@ import {
 import { parseChatFile, stripDataUriPayloads, normalizeText } from './parser.js';
 
 const CACHE_SEGS = path.join(CACHE_DIR, 'segments.bin');
-const CACHE_VERSION = 5;
+const CACHE_VERSION = 7;
 
 export const ROLE_CODE = { title: 0, user: 1, assistant: 2, note: 3 };
 export const ROLE_NAME = ['title', 'user', 'assistant', 'note'];
@@ -170,6 +170,7 @@ function toEntry(conv, blobStart, blobLength, segStart, segCount) {
     turnCount: conv.turnCount,
     userTurns: conv.userTurns,
     chars: conv.chars,
+    imageCount: conv.imageCount,
     preview: conv.preview,
     blobStart,
     blobLength,

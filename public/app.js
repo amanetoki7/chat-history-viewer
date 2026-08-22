@@ -936,7 +936,13 @@ function itemHtml(item) {
         <span>${fmtDate(itemTime(item))}</span>
         <span>${fmtInt(item.turnCount)} 発言</span>
       </div>
-      ${snippets || `<div class="ri-preview">${highlightText(item.preview, state.terms)}</div>`}`;
+      ${snippets || `<div class="ri-preview">${imageChipHtml(item)}${highlightText(item.preview, state.terms)}</div>`}`;
+}
+
+/** プレビュー先頭に置く添付画像チップ（画像アイコン + 枚数）。ホバーで画像をプレビューできる */
+function imageChipHtml(item) {
+  if (!item.imageCount) return '';
+  return `<span class="ri-img-chip" title="添付画像 ${fmtInt(item.imageCount)} 枚">${icon('photo', 11)}${fmtInt(item.imageCount)}</span>`;
 }
 
 /** li → 描画済み HTML（差分検出用の署名）。行を作り直さず変化だけを反映するために持つ */
@@ -1008,6 +1014,83 @@ el.list.addEventListener('scroll', () => {
   if (state.loading || state.offset >= state.total) return;
   if (el.list.scrollTop + el.list.clientHeight > el.list.scrollHeight - SCROLL_MARGIN) fetchPage(false);
 });
+
+/* ------------------------- 一覧の画像チップ（ホバーで添付画像をプレビュー） */
+
+/** relPath → /api/images の取得 Promise。ホバーのたびに読み直さない */
+const imagePopCache = new Map();
+/** プレビューに出す最大枚数（残りは「+n」で示す） */
+const IMAGE_POP_MAX = 4;
+/** ホバーしてから出すまでの猶予。行の上を素通りしただけでは出さない */
+const IMAGE_POP_DELAY = 150;
+
+const imagePop = document.createElement('div');
+imagePop.id = 'image-pop';
+imagePop.hidden = true;
+document.body.appendChild(imagePop);
+
+let imagePopChip = null; // ホバー中（読み込み待ち含む）のチップ
+let imagePopTimer = null;
+
+function hideImagePop() {
+  clearTimeout(imagePopTimer);
+  imagePopTimer = null;
+  imagePopChip = null;
+  imagePop.hidden = true;
+  imagePop.innerHTML = '';
+}
+
+async function showImagePop(chip, relPath) {
+  let job = imagePopCache.get(relPath);
+  if (!job) {
+    job = fetch(`/api/images?id=${encodeURIComponent(relPath)}&limit=${IMAGE_POP_MAX}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+    imagePopCache.set(relPath, job);
+  }
+  const data = await job;
+  if (!data) imagePopCache.delete(relPath); // 失敗は次のホバーで読み直す
+  if (imagePopChip !== chip || !chip.isConnected) return; // ホバーが外れた・行が描き直された
+  if (!data?.images?.length) return;
+
+  const rest = data.total - data.images.length;
+  imagePop.innerHTML =
+    data.images.map((src) => `<img src="${escapeHtml(src)}" alt="">`).join('') +
+    (rest > 0 ? `<span class="image-pop-more">+${fmtInt(rest)}</span>` : '');
+
+  // 一旦不可視で出して実寸を測り、画面からはみ出さない位置に置く
+  imagePop.style.visibility = 'hidden';
+  imagePop.hidden = false;
+  const r = chip.getBoundingClientRect();
+  const w = imagePop.offsetWidth;
+  const h = imagePop.offsetHeight;
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+  const top = r.bottom + 8 + h > window.innerHeight - 8 ? Math.max(8, r.top - h - 8) : r.bottom + 8;
+  imagePop.style.left = `${left}px`;
+  imagePop.style.top = `${top}px`;
+  imagePop.style.visibility = '';
+}
+
+el.list.addEventListener('mouseover', (ev) => {
+  const chip = ev.target.closest('.ri-img-chip');
+  if (!chip || chip === imagePopChip) return;
+  hideImagePop();
+  const li = chip.closest('.result-item');
+  if (!li?.dataset.id) return;
+  imagePopChip = chip;
+  imagePopTimer = setTimeout(() => showImagePop(chip, li.dataset.id), IMAGE_POP_DELAY);
+});
+
+el.list.addEventListener('mouseout', (ev) => {
+  if (!ev.target.closest('.ri-img-chip')) return;
+  // チップ内の移動やプレビュー自体への移動では消さない
+  const to = ev.relatedTarget;
+  if (to && (imagePop.contains(to) || to.closest?.('.ri-img-chip') === imagePopChip)) return;
+  hideImagePop();
+});
+
+imagePop.addEventListener('mouseleave', hideImagePop);
+el.list.addEventListener('scroll', hideImagePop, { passive: true });
 
 /* ---------------------------------------------------------- search popup */
 

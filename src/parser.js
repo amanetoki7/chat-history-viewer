@@ -63,6 +63,20 @@ export function stripDataUriPayloads(text) {
 }
 
 /**
+ * Markdown の画像記法（![alt](src)）の src を抜き出す正規表現。
+ * `<src>` 囲いと後続のタイトルは無視する。src が空のものには一致しない。
+ */
+export const MARKDOWN_IMAGE_RE = /!\[[^\]]*\]\(\s*<?([^)\s>]+)>?/g;
+
+/** テキストに含まれる Markdown 画像の数。 */
+export function countMarkdownImages(text) {
+  let count = 0;
+  MARKDOWN_IMAGE_RE.lastIndex = 0;
+  while (MARKDOWN_IMAGE_RE.exec(text)) count++;
+  return count;
+}
+
+/**
  * 先頭の YAML フロントマターを取り出す。
  * 完全な YAML ではなく、実データに出現する `key: value` 形式のみを解釈する。
  */
@@ -316,7 +330,14 @@ export function parseChatFile(raw, ctx) {
 
   // 貼り付け画像の base64 は文字数に数えない（数百万文字規模の水増しになるため）
   let chars = 0;
-  for (const t of turns) chars += stripDataUriPayloads(t.text).length;
+  // 添付画像（Markdown の画像記法）の数。一覧のプレビューのチップに出す。
+  // AI の回答が例示などで含む画像は「添付」ではないので、ユーザー発言だけを数える
+  let imageCount = 0;
+  for (const t of turns) {
+    const stripped = stripDataUriPayloads(t.text);
+    chars += stripped.length;
+    if (t.role === 'user') imageCount += countMarkdownImages(stripped);
+  }
 
   return {
     relPath: ctx.relPath,
@@ -336,6 +357,7 @@ export function parseChatFile(raw, ctx) {
     turnCount: turns.length,
     userTurns: turns.filter((t) => t.role === 'user').length,
     chars,
+    imageCount,
     preview,
     turns,
   };
