@@ -1171,6 +1171,29 @@ function setShowListTime(on) {
   else localStorage.setItem(SHOW_LIST_TIME_KEY, '0');
 }
 
+/**
+ * 一覧の各行に出す日付・発言数（メタ）とプレビュー。設定画面の「一般」で
+ * 全プロバイダー共通に切り替える。既定はコンパクト＝どちらも非表示。
+ * 表示の切り替えは applyUiSettings が注入する CSS で行う。
+ */
+const SHOW_LIST_META_KEY = 'chv-show-list-meta';
+let showListMeta = localStorage.getItem(SHOW_LIST_META_KEY) === '1';
+
+function setShowListMeta(on) {
+  showListMeta = on;
+  if (on) localStorage.setItem(SHOW_LIST_META_KEY, '1');
+  else localStorage.removeItem(SHOW_LIST_META_KEY);
+}
+
+const SHOW_LIST_PREVIEW_KEY = 'chv-show-list-preview';
+let showListPreview = localStorage.getItem(SHOW_LIST_PREVIEW_KEY) === '1';
+
+function setShowListPreview(on) {
+  showListPreview = on;
+  if (on) localStorage.setItem(SHOW_LIST_PREVIEW_KEY, '1');
+  else localStorage.removeItem(SHOW_LIST_PREVIEW_KEY);
+}
+
 // 「5分前」が古いままにならないよう毎分描き直す（表記が変わった行だけ書き換わる）
 setInterval(() => {
   if (showListTime && state.items.length) repaintItems();
@@ -1191,12 +1214,6 @@ const UI_FIELDS = [
   { key: 'fontSize', label: '文字サイズ', cssVar: '--chat-font-size', min: 12, max: 18, step: 0.5, unit: 'px' },
   { key: 'lineHeight', label: '行間', cssVar: '--chat-line-height', min: 1.4, max: 2.2, step: 0.05, unit: '' },
   { key: 'bubbleWidth', label: '自分の吹き出し幅', cssVar: '--user-bubble-max-width', min: 40, max: 100, step: 2, unit: '%' },
-];
-
-/** チェックボックスの項目（一覧の行の表示。既定はコンパクト＝非表示） */
-const UI_TOGGLES = [
-  { key: 'showMeta', label: '一覧に日付・発言数を表示', selector: '.ri-meta', display: 'flex' },
-  { key: 'showPreview', label: '一覧にプレビューを表示', selector: '.ri-preview', display: '-webkit-box' },
 ];
 
 /**
@@ -1254,10 +1271,12 @@ function applyUiSettings() {
       .map((f) => `${f.cssVar}:${conf[f.key]}${f.unit}`)
       .join(';');
     if (vars) css.push(`.conversation[data-source="${source}"]{${vars}}`);
-    for (const t of UI_TOGGLES) {
-      if (conf[t.key]) css.push(`.result-item[data-source="${source}"] ${t.selector}{display:${t.display}}`);
-    }
   }
+
+  // 一覧の行のメタ・プレビュー（「一般」の設定。全プロバイダー共通）
+  if (showListMeta) css.push('.result-item .ri-meta{display:flex}');
+  if (showListPreview) css.push('.result-item .ri-preview{display:-webkit-box}');
+
   uiStyle.textContent = css.join('\n');
 
   // アクセントカラーだけは属性で持つ（CSS からも後からの読み出しからも参照できる）
@@ -1281,7 +1300,22 @@ function saveUiSettings() {
   applyUiSettings();
 }
 
-applyUiSettings();
+// 旧形式（プロバイダーごとの showMeta / showPreview）からの引き継ぎ。
+// どれか 1 つでも表示していたら「一般」の設定で表示にし、旧キーは捨てる。
+{
+  let migrated = false;
+  for (const conf of Object.values(uiSettings)) {
+    if ('showMeta' in conf || 'showPreview' in conf) {
+      if (conf.showMeta) setShowListMeta(true);
+      if (conf.showPreview) setShowListPreview(true);
+      delete conf.showMeta;
+      delete conf.showPreview;
+      migrated = true;
+    }
+  }
+  if (migrated) saveUiSettings();
+  else applyUiSettings();
+}
 
 /** プロバイダー CSS が定める既定値を読む（未変更の項目のスライダー初期値用） */
 function readProviderDefaults(source) {
@@ -1419,6 +1453,16 @@ function renderGeneralPane() {
       ${switchHtml('list-time-switch', '一覧に相対時間を表示', showListTime)}
     </div>
     <p class="settings-note">オフにすると、一覧の各行の右端に出る相対時間（「3時間前」「昨日」など）を出しません。</p>
+    <div class="settings-section-label">一覧の行</div>
+    <div class="setting-row">
+      <label>日付・発言数</label>
+      ${switchHtml('list-meta-switch', '一覧に日付・発言数を表示', showListMeta)}
+    </div>
+    <div class="setting-row">
+      <label>プレビュー</label>
+      ${switchHtml('list-preview-switch', '一覧にプレビューを表示', showListPreview)}
+    </div>
+    <p class="settings-note">一覧の各行に日付・発言数と本文のプレビューを表示します。全プロバイダー共通で、オフ（既定）ではタイトル中心のコンパクトな見た目になります。</p>
     <div class="settings-section-label">同期</div>
     <div class="setting-row">
       <label>更新ドット</label>
@@ -1446,6 +1490,18 @@ function renderGeneralPane() {
   wireSwitch('list-time-switch', (on) => {
     setShowListTime(on);
     repaintItems(); // 時間表示の有無だけの変更なので読み込み直さない
+    renderGeneralPane();
+  });
+
+  wireSwitch('list-meta-switch', (on) => {
+    setShowListMeta(on);
+    applyUiSettings(); // 表示の切り替えは注入 CSS だけなので再描画は不要
+    renderGeneralPane();
+  });
+
+  wireSwitch('list-preview-switch', (on) => {
+    setShowListPreview(on);
+    applyUiSettings();
     renderGeneralPane();
   });
 
@@ -1592,10 +1648,6 @@ function renderSettingsPane() {
     </div>`;
   }).join('');
 
-  const toggles = UI_TOGGLES.map(
-    (t) => `<label class="check"><input type="checkbox" data-key="${t.key}"${conf[t.key] ? ' checked' : ''}> ${t.label}</label>`
-  ).join('');
-
   // アクセントカラー（持っているプロバイダーだけ）。色見本付きのリスト選択
   const accents = UI_ACCENTS[source];
   const accentRow = accents
@@ -1638,8 +1690,6 @@ function renderSettingsPane() {
     ${searchDetailRow}
     <div class="settings-section-label">チャット表示</div>
     ${sliders}
-    <div class="settings-section-label">一覧の行</div>
-    ${toggles}
     <button class="btn-block" id="settings-reset">${icon('arrow-back-up', 14)}このプロバイダーを既定に戻す</button>
     <p class="settings-note">設定はこのブラウザに保存され、すぐに反映されます。会話を開いたまま調整できます。</p>`;
 
@@ -1674,15 +1724,6 @@ function renderSettingsPane() {
       (uiSettings[source] ??= {})[f.key] = v;
       valueEl.textContent = `${v}${f.unit}`;
       valueEl.classList.remove('is-default');
-      saveUiSettings();
-      renderSettingsTabs();
-    });
-  }
-
-  for (const input of el.settingsPane.querySelectorAll('.check input')) {
-    input.addEventListener('change', () => {
-      if (input.checked) (uiSettings[source] ??= {})[input.dataset.key] = true;
-      else if (uiSettings[source]) delete uiSettings[source][input.dataset.key];
       saveUiSettings();
       renderSettingsTabs();
     });

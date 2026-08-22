@@ -456,9 +456,6 @@ html[data-theme="dark"] .src-logo[data-source="chatgpt"] { background-image: url
   .source-filter .source-menu { display: block; margin-left: 60px; }
 }
 
-.check { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; user-select: none; }
-.check input { accent-color: var(--accent); margin: 0; }
-
 .btn-block { width: 100%; padding: 7px; margin-top: 10px; font-size: 12px; color: var(--text-dim); }
 
 /* サーバー概要（設定モーダルのペインに出す索引の統計） */
@@ -567,7 +564,8 @@ body.results-resizing .results-resizer::after { background: var(--accent); }
 }
 .ri-snippet .who { color: var(--text-faint); font-size: 10.5px; margin-right: 5px; }
 
-/* コンパクト表示。プロバイダー CSS 側で display を戻せば個別に復活させられる */
+/* コンパクト表示。設定の「一般」（注入 CSS）で全体をまとめて戻せるほか、
+   プロバイダー CSS 側で display を戻せば個別に復活させられる */
 .ri-preview, .ri-meta { display: none; }
 
 mark { background: var(--mark-bg); color: var(--mark-text); border-radius: 2px; padding: 0 1px; }
