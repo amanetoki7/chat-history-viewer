@@ -941,6 +941,7 @@ function itemHtml(item) {
 
 /** プレビュー先頭に置く添付画像チップ（画像アイコン + 枚数）。ホバーで画像をプレビューできる */
 function imageChipHtml(item) {
+  if (imageCountScope === 'none') return '';
   const count = imageCountScope === 'first' ? item.firstImageCount : item.imageCount;
   if (!count) return '';
   const label = imageCountScope === 'first' ? '添付画像（最初の発言）' : '添付画像';
@@ -1282,14 +1283,18 @@ function setShowListPreview(on) {
 
 /**
  * 添付画像チップの数え方。'all' はチャット全体（ユーザー発言のみ）、
- * 'first' は最初の発言に添付したものだけ。ホバープレビューも同じ範囲になる。
+ * 'first' は最初の発言に添付したものだけ、'none' はチップ自体を出さない。
+ * ホバープレビューも同じ範囲になる。
  */
 const IMAGE_COUNT_SCOPE_KEY = 'chv-image-count-scope';
-let imageCountScope = localStorage.getItem(IMAGE_COUNT_SCOPE_KEY) === 'first' ? 'first' : 'all';
+const IMAGE_COUNT_SCOPES = ['first', 'none'];
+let imageCountScope = IMAGE_COUNT_SCOPES.includes(localStorage.getItem(IMAGE_COUNT_SCOPE_KEY))
+  ? localStorage.getItem(IMAGE_COUNT_SCOPE_KEY)
+  : 'all';
 
 function setImageCountScope(value) {
   imageCountScope = value;
-  if (value === 'first') localStorage.setItem(IMAGE_COUNT_SCOPE_KEY, 'first');
+  if (IMAGE_COUNT_SCOPES.includes(value)) localStorage.setItem(IMAGE_COUNT_SCOPE_KEY, value);
   else localStorage.removeItem(IMAGE_COUNT_SCOPE_KEY);
 }
 
@@ -1536,6 +1541,7 @@ const TIME_BASIS_OPTIONS = [
 const IMAGE_SCOPE_OPTIONS = [
   { value: 'all', label: 'チャット全体' },
   { value: 'first', label: '最初の発言のみ' },
+  { value: 'none', label: '表示しない' },
 ];
 
 /** 「一般」ペイン。テーマとチャットの日時の基準（プロバイダーに依らない設定）。 */
@@ -1571,7 +1577,7 @@ function renderGeneralPane() {
       <label>画像の枚数</label>
       ${selectMenuHtml('image-scope-select', '添付画像の数え方', IMAGE_SCOPE_OPTIONS, imageCountScope)}
     </div>
-    <p class="settings-note">プレビューに出す添付画像チップの枚数の数え方。「最初の発言のみ」はチャット開始時に添付した画像だけを数えます。ホバーで出る画像も同じ範囲になります。</p>
+    <p class="settings-note">プレビューに出す添付画像チップの枚数の数え方。「最初の発言のみ」はチャット開始時に添付した画像だけを数えます。ホバーで出る画像も同じ範囲になります。「表示しない」でチップ自体を非表示にできます。</p>
     <div class="settings-section-label">同期</div>
     <div class="setting-row">
       <label>更新ドット</label>
