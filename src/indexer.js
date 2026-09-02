@@ -20,10 +20,10 @@ import {
   IGNORED_DIRS,
   REQUIRED_PROPERTY,
 } from './config.js';
-import { parseChatFile, stripDataUriPayloads, normalizeText } from './parser.js';
+import { parseChatFile, stripDataUriPayloads, normalizeText, titleFromFilename } from './parser.js';
 
 const CACHE_SEGS = path.join(CACHE_DIR, 'segments.bin');
-const CACHE_VERSION = 8;
+const CACHE_VERSION = 9;
 
 export const ROLE_CODE = { title: 0, user: 1, assistant: 2, note: 3 };
 export const ROLE_NAME = ['title', 'user', 'assistant', 'note'];
@@ -97,7 +97,7 @@ async function scanFiles(dir, base = dir) {
       out.push({
         abs,
         relPath: path.relative(base, abs).split(path.sep).join('/'),
-        title: path.basename(dirent.name, ext),
+        title: titleFromFilename(path.basename(dirent.name, ext)),
         mtimeMs: Math.floor(st.mtimeMs),
         size: st.size,
       });
@@ -544,7 +544,7 @@ export function updateEntries(paths) {
         targets.set(rel, {
           abs,
           relPath: rel,
-          title: path.basename(abs, path.extname(abs)),
+          title: titleFromFilename(path.basename(abs, path.extname(abs))),
           mtimeMs: Math.floor(st.mtimeMs),
           size: st.size,
         });

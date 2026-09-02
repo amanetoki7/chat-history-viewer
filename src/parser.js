@@ -19,6 +19,23 @@ const HR_LINE = /^\s*-{3,}\s*$/;
 const H1 = /^# (.+?)\s*$/;
 const THREAD_CLOSER = /^## (Sources|Related Questions|参考文献|関連する質問)\s*$/i;
 
+/**
+ * ファイル名（拡張子なし）から表示用のタイトルを復元する。
+ *
+ * エクスポータは元のタイトルの空白と `\/:*?"<>|` をまとめて `_` に潰すので、
+ * 復元できるのは空白だけになる。ただし数字に挟まれた `_` は `16_9`（元は `16:9`）や
+ * `192.168.0.0_24` のように空白でなかった可能性が高いため、そのまま残す。
+ */
+export function titleFromFilename(name) {
+  return name
+    .replace(/_+/g, (run, at) => {
+      const prev = name[at - 1];
+      const next = name[at + run.length];
+      return prev >= '0' && prev <= '9' && next >= '0' && next <= '9' ? run : ' ';
+    })
+    .trim();
+}
+
 /** 改行コードを LF に統一し、BOM を除去する。 */
 export function normalizeText(raw) {
   let text = raw.replace(/\r\n?/g, '\n');
@@ -110,6 +127,16 @@ function parseScalar(rawValue) {
       .split(',')
       .map((s) => s.trim().replace(/^["']|["']$/g, ''))
       .filter(Boolean);
+  }
+  // ダブルクォート囲みは JSON として読む（Title は `\"` や `\n` を含みうる）。
+  // JSON として不正なものは、囲みを外すだけの従来動作に落とす。
+  if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+    try {
+      const parsed = JSON.parse(value);
+      if (typeof parsed === 'string') return parsed;
+    } catch {
+      /* 素朴な引用符剥がしに任せる */
+    }
   }
   return value.replace(/^["']|["']$/g, '');
 }
@@ -314,6 +341,10 @@ export function parseChatFile(raw, ctx) {
     format = 'plain';
   }
 
+  // Title はエクスポータが書き出す元のタイトルそのもの。無い（古い書き出しの）場合は
+  // ctx.title＝ファイル名から復元したタイトルで代用する。
+  const frontTitle = typeof data.Title === 'string' ? data.Title.trim() : '';
+
   const source = normalizeSource(data.Source, ctx.relPath);
   const chatTime = toEpoch(data['Chat Time']) ?? toEpoch(turns.find((t) => t.time)?.time) ?? ctx.mtimeMs;
   // 本家 GUI の多くはチャット一覧を最終メッセージ順に並べるため、最後の発言時刻も持つ。
@@ -347,7 +378,7 @@ export function parseChatFile(raw, ctx) {
 
   return {
     relPath: ctx.relPath,
-    title: plainTitle || ctx.title,
+    title: frontTitle || plainTitle || ctx.title,
     source,
     format,
     url: typeof data.URL === 'string' ? data.URL : '',
