@@ -31,6 +31,16 @@ const CHUNK_MAX = 3000;
 const CHUNK_OVERLAP = 200;
 /** /v1/embeddings 1 リクエストに載せるチャンク数 */
 const BATCH = 64;
+/** 1 バッチあたりの試行回数（瞬断や過負荷で全体を捨てないため） */
+const EMBED_ATTEMPTS = 4;
+/** 再試行の初回待ち時間。失敗のたびに倍にする */
+const RETRY_BASE_MS = 1000;
+/**
+ * 1 リクエストの上限時間。
+ * Node の既定（ヘッダ待ち 300s）だと、応答が返らないまま固まったときに
+ * 5 分ブロックしてしまう。実測は 64 チャンクで数秒なので十分な余裕。
+ */
+const REQUEST_TIMEOUT_MS = 120_000;
 
 const state = {
   model: null,
@@ -53,7 +63,7 @@ const PREFERRED_EMBED_MODEL = 'text-embedding-ruri-v3-310m';
 
 async function resolveEmbedModel() {
   if (process.env.LMSTUDIO_EMBED_MODEL) return process.env.LMSTUDIO_EMBED_MODEL;
-  const res = await fetch(`${BASE_URL}/models`);
+  const res = await fetch(`${BASE_URL}/models`, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`LM Studio /models が ${res.status} を返しました`);
   const { data } = await res.json();
   const ids = (data || []).map((x) => x.id);
@@ -77,6 +87,19 @@ function queryPrefix() {
   return '';
 }
 
+/**
+ * fetch の失敗は message が "fetch failed" だけで原因が分からないため、
+ * err.cause（ECONNREFUSED / ECONNRESET / UND_ERR_HEADERS_TIMEOUT など）まで見せる。
+ */
+function describeError(err) {
+  if (err?.name === 'TimeoutError') return `応答なし (${REQUEST_TIMEOUT_MS / 1000}s でタイムアウト)`;
+  const cause = err?.cause;
+  const detail = cause?.code || cause?.errors?.find((e) => e?.code)?.code || cause?.message;
+  return detail ? `${err.message} (${detail})` : err.message || String(err);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 function normalize(v) {
   let s = 0;
   for (let i = 0; i < v.length; i++) s += v[i] * v[i];
@@ -85,12 +108,13 @@ function normalize(v) {
   return v;
 }
 
-/** テキスト配列をまとめて埋め込む。返り値は正規化済み Float32Array の配列。 */
-async function embed(texts) {
+/** テキスト配列を 1 リクエストで埋め込む。返り値は正規化済み Float32Array の配列。 */
+async function embedOnce(texts) {
   const res = await fetch(`${BASE_URL}/embeddings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: state.model, input: texts }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
@@ -101,6 +125,36 @@ async function embed(texts) {
   for (const d of json.data) out[d.index] = normalize(Float32Array.from(d.embedding));
   if (!state.dim && out[0]) state.dim = out[0].length;
   return out;
+}
+
+/**
+ * バッチ 1 つを、瞬断を挟んでも諦めずに埋め込む。
+ *
+ * 10,000 件規模の構築は数十分かかるので、途中の 1 リクエストが
+ * ネットワークの瞬断（fetch failed）や一時的な過負荷で落ちただけで
+ * 全体を捨てないよう、指数バックオフで再試行する。
+ * それでも駄目ならバッチを半分に割って試す（本文が長すぎる場合の保険）。
+ */
+async function embed(texts, log = () => {}) {
+  let wait = RETRY_BASE_MS;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await embedOnce(texts);
+    } catch (err) {
+      if (attempt < EMBED_ATTEMPTS) {
+        log(`  埋め込みリクエスト失敗 (${describeError(err)}) — ${wait / 1000}s 後に再試行 ${attempt}/${EMBED_ATTEMPTS - 1}`);
+        await sleep(wait);
+        wait *= 2;
+        continue;
+      }
+      if (texts.length === 1) throw err;
+      const mid = Math.ceil(texts.length / 2);
+      log(`  埋め込みリクエスト失敗 (${describeError(err)}) — ${texts.length} 件を ${mid} 件ずつに分割して再試行`);
+      const head = await embed(texts.slice(0, mid), log);
+      const tail = await embed(texts.slice(mid), log);
+      return [...head, ...tail];
+    }
+  }
 }
 
 /* ---------------------------------------------------------- チャンク分割 */
@@ -294,7 +348,7 @@ async function buildEmbeddings({ force = false, log = () => {} } = {}) {
       if (!queue.length) return;
       const batch = queue;
       queue = [];
-      const vecs = await embed(batch.map((b) => b.text));
+      const vecs = await embed(batch.map((b) => b.text), log);
       batch.forEach((b, j) => {
         b.rec.vecs[b.i] = vecs[j];
       });
@@ -327,8 +381,18 @@ async function buildEmbeddings({ force = false, log = () => {} } = {}) {
     await saveCache();
     log(`埋め込み構築 完了 (${totalChunks().toLocaleString()} チャンク, ${((Date.now() - started) / 1000).toFixed(0)}s)`);
   } catch (err) {
-    state.lastError = err.message;
-    log(`埋め込み構築に失敗: ${err.message}`);
+    state.lastError = describeError(err);
+    // 途中で落ちたファイルは vecs が欠けたまま state に残る。消しておかないと
+    // 次の増分構築で mtime/size が一致して「済み」と見なされ、再起動するまで
+    // 二度と埋め込まれない（キャッシュにも保存されないので検索から消える）。
+    let incomplete = 0;
+    for (const [relPath, f] of state.files) {
+      if (f.vecs.some((v) => !v)) {
+        state.files.delete(relPath);
+        incomplete++;
+      }
+    }
+    log(`埋め込み構築に失敗: ${state.lastError}${incomplete ? `（未完了の ${incomplete} 件は次回やり直します）` : ''}`);
   } finally {
     state.building = false;
   }
