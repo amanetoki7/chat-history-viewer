@@ -9,7 +9,7 @@
  *   LMSTUDIO_MODEL    … 未指定ならロード済みモデルを自動選択
  */
 
-export const BASE_URL = (process.env.LMSTUDIO_BASE_URL || 'http://localhost:1234/v1').replace(/\/+$/, '');
+export const BASE_URL = (process.env.LMSTUDIO_BASE_URL || 'http://100.77.90.128:1234/v1').replace(/\/+$/, '');
 
 /** 使用モデルを決める。指定がなければロード済みモデル → モデル一覧の先頭。 */
 export async function resolveModel() {
@@ -137,6 +137,6 @@ export function connectionErrorMessage(err) {
     (err?.cause?.errors || []).some((e) => e?.code === 'ECONNREFUSED') ||
     /fetch failed|ECONNREFUSED/i.test(err?.message || '');
   return unreachable
-    ? 'LM Studio に接続できません。LM Studio を起動し、ローカルサーバー（既定 http://localhost:1234）を開始してください。'
+    ? 'LM Studio に接続できません。LM Studio を起動し、ローカルサーバー（既定 http://100.77.90.128:1234）を開始してください。'
     : null;
 }

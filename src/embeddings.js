@@ -18,7 +18,7 @@ import path from 'node:path';
 import { CACHE_DIR } from './config.js';
 import { index, loadConversation, resolveEntryPath, concatConversation } from './indexer.js';
 
-const BASE_URL = (process.env.LMSTUDIO_BASE_URL || 'http://localhost:1234/v1').replace(/\/+$/, '');
+const BASE_URL = (process.env.LMSTUDIO_BASE_URL || 'http://100.77.90.128:1234/v1').replace(/\/+$/, '');
 const META_PATH = path.join(CACHE_DIR, 'embeddings.json');
 const BIN_PATH = path.join(CACHE_DIR, 'embeddings.bin');
 const VERSION = 1;

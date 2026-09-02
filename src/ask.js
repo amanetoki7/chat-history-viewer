@@ -10,7 +10,7 @@
  *   3. 抜粋を根拠として LLM がストリーミングで回答（出典番号つき）
  *
  * 環境変数:
- *   LMSTUDIO_BASE_URL … 既定 http://localhost:1234/v1
+ *   LMSTUDIO_BASE_URL … 既定 http://100.77.90.128:1234/v1
  *   LMSTUDIO_MODEL    … 未指定ならロード済みモデルを自動選択
  */
 

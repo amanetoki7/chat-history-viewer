@@ -269,7 +269,7 @@ app.post('/api/ask', async (req, res) => {
       (err?.cause?.errors || []).some((e) => e?.code === 'ECONNREFUSED') ||
       /fetch failed|ECONNREFUSED/i.test(err?.message || '');
     const message = unreachable
-      ? 'LM Studio に接続できません。LM Studio を起動し、ローカルサーバー（既定 http://localhost:1234）を開始してください。'
+      ? 'LM Studio に接続できません。LM Studio を起動し、ローカルサーバー（既定 http://100.77.90.128:1234）を開始してください。'
       : err?.message || '回答の生成に失敗しました。';
     send('error', { message });
   } finally {
