@@ -249,8 +249,11 @@ async function saveCache(built, files) {
   await writeAtomic(CACHE_META, JSON.stringify(meta));
 }
 
-/** キャッシュが現在のファイル群と一致していれば読み込む。 */
-async function loadCache(files) {
+/**
+ * キャッシュを読み込む。version / root と本体の整合性だけを確かめる。
+ * ファイル群との一致は呼び出し側が判断する（一致しなくても増分で追いつける）。
+ */
+async function loadCache() {
   let meta;
   try {
     meta = JSON.parse(await fs.readFile(CACHE_META, 'utf8'));
@@ -258,11 +261,7 @@ async function loadCache(files) {
     return null;
   }
   if (meta.version !== CACHE_VERSION || meta.root !== CHAT_ROOT) return null;
-  if (!Array.isArray(meta.files) || meta.files.length !== files.length) return null;
-  for (let i = 0; i < files.length; i++) {
-    const [relPath, mtimeMs, size] = meta.files[i];
-    if (relPath !== files[i].relPath || mtimeMs !== files[i].mtimeMs || size !== files[i].size) return null;
-  }
+  if (!Array.isArray(meta.files) || !Array.isArray(meta.entries)) return null;
 
   try {
     const blob = await fs.readFile(CACHE_BLOB);
@@ -270,10 +269,20 @@ async function loadCache(files) {
     if (blob.length !== meta.blobLength) return null;
     if (segBuf.byteLength !== meta.segCount * 16) return null;
     const segments = new Int32Array(segBuf.buffer, segBuf.byteOffset, segBuf.byteLength / 4);
-    return { entries: meta.entries, blob, segments, builtAt: meta.builtAt, root: meta.root };
+    return { entries: meta.entries, blob, segments, builtAt: meta.builtAt, root: meta.root, files: meta.files };
   } catch {
     return null;
   }
+}
+
+/** キャッシュ保存時のファイル群が現在のものと完全に一致するか。 */
+function cacheMatches(cached, files) {
+  if (cached.files.length !== files.length) return false;
+  for (let i = 0; i < files.length; i++) {
+    const [relPath, mtimeMs, size] = cached.files[i];
+    if (relPath !== files[i].relPath || mtimeMs !== files[i].mtimeMs || size !== files[i].size) return false;
+  }
+  return true;
 }
 
 /* --------------------------------------------------------- 索引の増分更新 */
@@ -570,21 +579,25 @@ export function reconcileIndex({ log = () => {} } = {}) {
   return exclusive(async () => {
     const started = Date.now();
     const files = await scanFiles(CHAT_ROOT, CHAT_ROOT);
-    const targets = new Map();
-
-    const seen = new Set();
-    for (const f of files) {
-      seen.add(f.relPath);
-      const { at, found } = locateEntry(f.relPath);
-      if (found && index.entries[at].mtimeMs === f.mtimeMs && index.entries[at].size === f.size) continue;
-      targets.set(f.relPath, f);
-    }
-    for (const e of index.entries) if (!seen.has(e.relPath)) targets.set(e.relPath, null);
-
-    if (targets.size) log(`差分 ${targets.size.toLocaleString()} 件を反映します`);
-    const result = await applyTargets(targets);
+    const result = await reconcileWith(files, log);
     return { ...result, ms: Date.now() - started };
   });
+}
+
+/** 走査済みのファイル群と現在の索引の差分だけを反映する（exclusive の内側で使う）。 */
+async function reconcileWith(files, log = () => {}) {
+  const targets = new Map();
+  const seen = new Set();
+  for (const f of files) {
+    seen.add(f.relPath);
+    const { at, found } = locateEntry(f.relPath);
+    if (found && index.entries[at].mtimeMs === f.mtimeMs && index.entries[at].size === f.size) continue;
+    targets.set(f.relPath, f);
+  }
+  for (const e of index.entries) if (!seen.has(e.relPath)) targets.set(e.relPath, null);
+
+  if (targets.size) log(`差分 ${targets.size.toLocaleString()} 件を反映します`);
+  return applyTargets(targets);
 }
 
 /** 現在の索引を .cache/ へ保存する。 */
@@ -608,10 +621,20 @@ export function ensureIndex({ force = false, log = () => {} } = {}) {
     }
 
     if (!force) {
-      const cached = await loadCache(files);
+      const cached = await loadCache();
       if (cached) {
+        const exact = cacheMatches(cached, files);
         adoptIndex(cached);
-        log(`キャッシュから復元 (${(Date.now() - started) / 1000}s)`);
+        if (exact) {
+          log(`キャッシュから復元 (${(Date.now() - started) / 1000}s)`);
+          return { index, cached: true, files: files.length, ms: Date.now() - started };
+        }
+        // ファイル群が変わっていても全再構築はせず、キャッシュを土台に差分だけ追いつく
+        // （全再構築はメモリを大量に使い、規模が大きいとヒープ上限で落ちる）
+        log(`キャッシュから復元し、差分を反映します (キャッシュ ${cached.entries.length.toLocaleString()} 件)`);
+        const result = await reconcileWith(files, log);
+        log(`差分反映 完了: 追加 ${result.added} / 変更 ${result.updated} / 削除 ${result.removed} (${((Date.now() - started) / 1000).toFixed(1)}s)`);
+        if (result.added || result.updated || result.removed) await saveCache(index, index.entries);
         return { index, cached: true, files: files.length, ms: Date.now() - started };
       }
     }

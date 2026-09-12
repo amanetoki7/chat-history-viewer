@@ -26,6 +26,9 @@ npm start
 | `PORT` | `5173` | 待ち受けポート |
 | `CHV_CACHE_DIR` | `./.cache` | 索引・埋め込みの保存先 |
 | `CHV_WATCH` | `1` | `0` にするとファイル監視を止める |
+| `LMSTUDIO_BASE_URL` | `http://100.77.90.128:1234/v1` | リモートの LM Studio（回答生成・埋め込み） |
+| `EMBED_LOCAL_URL` | `http://127.0.0.1:8090/v1` | ローカルの埋め込みサーバ（llama-server）。空文字で無効 |
+| `LMSTUDIO_EMBED_MODEL` | 自動 | 埋め込みモデル id を固定する |
 
 ```bash
 CHAT_ROOT="D:/Vault/AI Chats" PORT=8080 npm start   # ルートを変える
@@ -194,9 +197,27 @@ public/             フロントエンド（依存フレームワークなし）
    参照されなくなるだけでよい。無駄が 16 MB かつ全体の 2 割を超えたら生きている
    エントリだけを詰め直す
 2. **埋め込み** … 変更されたファイルのチャンクだけを LM Studio でベクトル化して差し替える。
-   構築中に次の変更が届いた場合は、終わり次第もう一度回して取りこぼさない
+   構築中に次の変更が届いた場合は、終わり次第もう一度回して取りこぼさない。
+   リモートの LM Studio に届かないときは、ローカルの llama-server（下記）へ自動で切り替える
 3. **キャッシュ** … 100 MB 級の書き出しになるので、変更が 15 秒止んでからまとめて保存する
    （`Ctrl+C` 時は未保存分を書き出してから終了）
+
+### ローカル埋め込みサーバ（リモート不在時の予備）
+
+`models/ruri-v3-310m-q8_0.gguf`（LM Studio 側と同じ Ruri v3 Q8_0）を llama.cpp の
+`llama-server --embedding` で `127.0.0.1:8090` に公開しておくと、リモートが落ちていても
+増分更新と質問の埋め込みが止まらない。`--alias` でモデル id をリモートと揃えてあるので、
+どちらで作ったベクトルも同じキャッシュに混ぜて使える（同一 GGUF・同一エンジンのため
+コサイン類似度で 0.9998 以上一致する）。
+
+```bash
+# ~/.local/opt/llama.cpp に GitHub Releases の ubuntu-x64 ビルドを展開してある
+systemctl --user status llama-embed     # ~/.config/systemd/user/llama-embed.service
+```
+
+CPU 推論なので 1 チャンク数秒かかる。数件〜数十件の増分と検索クエリには足りるが、
+全再構築（10 万チャンク）には向かない。`GET /api/embeddings/status` の `endpoint.kind` で
+いまどちらを使っているかが分かる。
 
 画面側にもそのまま流れる。ブラウザは `/api/events`（SSE）で更新を受け取り、操作なしで自動反映する。
 

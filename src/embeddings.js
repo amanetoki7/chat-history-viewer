@@ -9,7 +9,14 @@
  * mtime/size が変わらない限りオフセットは原文と一致するため、キャッシュの
  * 有効判定と同じ条件でそのまま原文抽出に使える。
  *
+ * 接続先はリモート（LM Studio）→ ローカル（llama-server --embedding）の順に試し、
+ * 最初に応答した方を使う。ローカルは models/ の同じ GGUF（Ruri v3 Q8_0）を
+ * 同じモデル id（--alias）で公開しているので、切り替わってもキャッシュは共用できる。
+ * ただし CPU 推論なので増分更新と質問の埋め込み向き。全再構築には向かない。
+ *
  * 環境変数:
+ *   LMSTUDIO_BASE_URL    … リモート。既定 http://100.77.90.128:1234/v1
+ *   EMBED_LOCAL_URL      … ローカル。既定 http://127.0.0.1:8090/v1。空文字で無効
  *   LMSTUDIO_EMBED_MODEL … 未指定なら既定モデル（ruri-v3）→ embed を含む id の順に自動選択
  */
 
@@ -18,7 +25,8 @@ import path from 'node:path';
 import { CACHE_DIR } from './config.js';
 import { index, loadConversation, resolveEntryPath, concatConversation } from './indexer.js';
 
-const BASE_URL = (process.env.LMSTUDIO_BASE_URL || 'http://100.77.90.128:1234/v1').replace(/\/+$/, '');
+const REMOTE_URL = (process.env.LMSTUDIO_BASE_URL || 'http://100.77.90.128:1234/v1').replace(/\/+$/, '');
+const LOCAL_URL = (process.env.EMBED_LOCAL_URL ?? 'http://127.0.0.1:8090/v1').replace(/\/+$/, '');
 const META_PATH = path.join(CACHE_DIR, 'embeddings.json');
 const BIN_PATH = path.join(CACHE_DIR, 'embeddings.bin');
 const VERSION = 1;
@@ -29,20 +37,27 @@ const CHUNK_BYTES = 2000;
 const CHUNK_MAX = 3000;
 /** 長いターンを分割するときの重なり（バイト） */
 const CHUNK_OVERLAP = 200;
-/** /v1/embeddings 1 リクエストに載せるチャンク数 */
-const BATCH = 64;
+/**
+ * 接続先の候補（先頭から順に試す）。batch は /v1/embeddings 1 リクエストに載せるチャンク数。
+ * ローカルは CPU で 1 チャンクあたり数秒かかるため、1 リクエストを小さくして
+ * 上限時間を長めに取る（64 件だと 4 分近くかかり 120s では切れてしまう）。
+ * Node の既定（ヘッダ待ち 300s）に任せると、応答が返らないまま固まったときに
+ * 5 分ブロックしてしまうので、上限は必ず明示する。
+ */
+const ENDPOINTS = [
+  { kind: 'remote', url: REMOTE_URL, batch: 64, timeoutMs: 120_000 },
+  ...(LOCAL_URL ? [{ kind: 'local', url: LOCAL_URL, batch: 8, timeoutMs: 600_000 }] : []),
+];
+/** 接続先の生存確認（/models）に掛ける上限時間 */
+const PROBE_TIMEOUT_MS = 3000;
 /** 1 バッチあたりの試行回数（瞬断や過負荷で全体を捨てないため） */
 const EMBED_ATTEMPTS = 4;
 /** 再試行の初回待ち時間。失敗のたびに倍にする */
 const RETRY_BASE_MS = 1000;
-/**
- * 1 リクエストの上限時間。
- * Node の既定（ヘッダ待ち 300s）だと、応答が返らないまま固まったときに
- * 5 分ブロックしてしまう。実測は 64 チャンクで数秒なので十分な余裕。
- */
-const REQUEST_TIMEOUT_MS = 120_000;
 
 const state = {
+  /** 現在使っている接続先（ENDPOINTS の要素） */
+  endpoint: null,
   model: null,
   dim: 0,
   /** relPath → {mtimeMs, size, chunks: [[start,end],...], vecs: Float32Array[]} */
@@ -61,16 +76,62 @@ const state = {
 /** 日本語検索に強い Ruri v3 を優先して使う */
 const PREFERRED_EMBED_MODEL = 'text-embedding-ruri-v3-310m';
 
-async function resolveEmbedModel() {
-  if (process.env.LMSTUDIO_EMBED_MODEL) return process.env.LMSTUDIO_EMBED_MODEL;
-  const res = await fetch(`${BASE_URL}/models`, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-  if (!res.ok) throw new Error(`LM Studio /models が ${res.status} を返しました`);
+async function listModels(ep) {
+  const res = await fetch(`${ep.url}/models`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
+  if (!res.ok) throw new Error(`/models が ${res.status} を返しました`);
   const { data } = await res.json();
-  const ids = (data || []).map((x) => x.id);
+  return (data || []).map((x) => x.id);
+}
+
+function pickModel(ids) {
+  const wanted = process.env.LMSTUDIO_EMBED_MODEL;
+  if (wanted) return ids.includes(wanted) ? wanted : null;
   if (ids.includes(PREFERRED_EMBED_MODEL)) return PREFERRED_EMBED_MODEL;
-  const m = ids.find((id) => /embed/i.test(id));
-  if (!m) throw new Error('LM Studio に埋め込みモデルがありません。ruri-v3 などをダウンロードしてください。');
-  return m;
+  return ids.find((id) => /embed/i.test(id)) || null;
+}
+
+/**
+ * 接続先とモデルを決める。ENDPOINTS を順に /models で確かめ、使えるモデルのある
+ * 最初の接続先を state.endpoint に据えてモデル id を返す。全滅なら例外。
+ */
+async function resolveEndpoint(log = () => {}) {
+  const errors = [];
+  for (const ep of ENDPOINTS) {
+    let ids;
+    try {
+      ids = await listModels(ep);
+    } catch (err) {
+      errors.push(`${ep.kind}: ${describeError(err)}`);
+      continue;
+    }
+    const model = pickModel(ids);
+    if (!model) {
+      errors.push(`${ep.kind}: 埋め込みモデルがありません`);
+      continue;
+    }
+    if (state.endpoint?.kind !== ep.kind) log(`埋め込みの接続先: ${ep.kind} (${ep.url}, model: ${model})`);
+    state.endpoint = ep;
+    return model;
+  }
+  state.endpoint = null;
+  throw new Error(`埋め込みの接続先がありません（${errors.join(' / ')}）。LM Studio か llama-server で ruri-v3 を起動してください。`);
+}
+
+/**
+ * リクエストが失敗したときに接続先を選び直す（リモートが落ちたらローカルへ、戻ったらリモートへ）。
+ * モデル id が変わる乗り換えはキャッシュと混ざるので拒否する。
+ */
+async function reconnect(log = () => {}) {
+  const before = state.endpoint;
+  try {
+    const model = await resolveEndpoint(log);
+    if (model !== state.model) {
+      state.endpoint = before;
+      throw new Error(`接続先のモデルが違います (${state.model} → ${model})`);
+    }
+  } catch (err) {
+    log(`  接続先の再選択に失敗: ${describeError(err)}`);
+  }
 }
 
 /** 埋め込みモデルごとのタスク接頭辞（付けると検索精度が上がる） */
@@ -92,7 +153,7 @@ function queryPrefix() {
  * err.cause（ECONNREFUSED / ECONNRESET / UND_ERR_HEADERS_TIMEOUT など）まで見せる。
  */
 function describeError(err) {
-  if (err?.name === 'TimeoutError') return `応答なし (${REQUEST_TIMEOUT_MS / 1000}s でタイムアウト)`;
+  if (err?.name === 'TimeoutError') return '応答なし (タイムアウト)';
   const cause = err?.cause;
   const detail = cause?.code || cause?.errors?.find((e) => e?.code)?.code || cause?.message;
   return detail ? `${err.message} (${detail})` : err.message || String(err);
@@ -110,15 +171,17 @@ function normalize(v) {
 
 /** テキスト配列を 1 リクエストで埋め込む。返り値は正規化済み Float32Array の配列。 */
 async function embedOnce(texts) {
-  const res = await fetch(`${BASE_URL}/embeddings`, {
+  const ep = state.endpoint;
+  if (!ep) throw new Error('埋め込みの接続先が決まっていません');
+  const res = await fetch(`${ep.url}/embeddings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: state.model, input: texts }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(ep.timeoutMs),
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
-    throw new Error(`LM Studio /embeddings がエラー (${res.status}): ${detail.slice(0, 200)}`);
+    throw new Error(`${ep.kind} /embeddings がエラー (${res.status}): ${detail.slice(0, 200)}`);
   }
   const json = await res.json();
   const out = new Array(texts.length);
@@ -136,6 +199,13 @@ async function embedOnce(texts) {
  * それでも駄目ならバッチを半分に割って試す（本文が長すぎる場合の保険）。
  */
 async function embed(texts, log = () => {}) {
+  // 接続先ごとの上限を超える分は分けて送る（ローカルへ切り替わった直後など）
+  const max = state.endpoint?.batch || 64;
+  if (texts.length > max) {
+    const out = [];
+    for (let i = 0; i < texts.length; i += max) out.push(...(await embed(texts.slice(i, i + max), log)));
+    return out;
+  }
   let wait = RETRY_BASE_MS;
   for (let attempt = 1; ; attempt++) {
     try {
@@ -145,6 +215,7 @@ async function embed(texts, log = () => {}) {
         log(`  埋め込みリクエスト失敗 (${describeError(err)}) — ${wait / 1000}s 後に再試行 ${attempt}/${EMBED_ATTEMPTS - 1}`);
         await sleep(wait);
         wait *= 2;
+        await reconnect(log);
         continue;
       }
       if (texts.length === 1) throw err;
@@ -307,7 +378,7 @@ async function buildEmbeddings({ force = false, log = () => {} } = {}) {
   state.building = true;
   state.lastError = null;
   try {
-    const model = await resolveEmbedModel();
+    const model = await resolveEndpoint(log);
     if (!state.loaded && !force) await loadCache(model);
     if (force || (state.model && state.model !== model)) {
       state.files.clear();
@@ -368,7 +439,7 @@ async function buildEmbeddings({ force = false, log = () => {} } = {}) {
         chunks.forEach(([s, e], i) => queue.push({ rec, i, text: docText(conv.title, buf, s, e, i) }));
         state.files.set(entry.relPath, rec);
       }
-      while (queue.length >= BATCH) await flushQueue();
+      while (queue.length >= (state.endpoint?.batch || 64)) await flushQueue();
       state.filesDone = n + 1;
       if ((n + 1) % 500 === 0) log(`  埋め込み ${(n + 1).toLocaleString()} / ${todo.length.toLocaleString()}`);
       if (Date.now() - lastSave > 120_000) {
@@ -414,6 +485,7 @@ export function embeddingsStatus() {
   return {
     ready: embeddingsReady(),
     building: state.building,
+    endpoint: state.endpoint ? { kind: state.endpoint.kind, url: state.endpoint.url } : null,
     model: state.model,
     dim: state.dim,
     files: state.files.size,
@@ -425,7 +497,7 @@ export function embeddingsStatus() {
 
 /** 質問文を埋め込む。 */
 export async function embedQuery(text) {
-  if (!state.model) state.model = await resolveEmbedModel();
+  if (!state.model || !state.endpoint) state.model = await resolveEndpoint();
   const [vec] = await embed([queryPrefix() + String(text).slice(0, 2000)]);
   return vec;
 }
